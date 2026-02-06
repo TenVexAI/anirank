@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-AniRank is a web application that allows users to create, curate, and share personalized ranked anime lists. Users search for anime titles (shows and movies), add them to named lists, rate them across four scoring categories, and publish their lists for the community to browse, like, and comment on. Anime metadata (cover art, genres, descriptions, streaming availability) is pulled automatically from the AniList GraphQL API.
+AniRank is a web application that allows users to create, curate, and share personalized ranked anime lists. Users search for anime titles (shows and movies), add them to named lists, rate them across four scoring categories, and publish their lists for the community to browse, like, and comment on. Anime metadata (cover art, genres, descriptions, streaming availability) is pulled automatically from the AniList GraphQL API. Anime titles are stored in three forms — English, Romaji, and Japanese (native) — with English and Japanese displayed in the UI and Romaji used as an additional searchable field.
 
 ---
 
@@ -22,7 +22,7 @@ AniRank is a web application that allows users to create, curate, and share pers
 | Styling | TBD (Tailwind CSS recommended) |
 | Backend / Database | Supabase (Postgres + Row-Level Security) |
 | Authentication | Supabase Auth with OAuth providers: Twitch, Discord, GitHub |
-| Anime Data Source | AniList GraphQL API (https://graphql.anilist.co) |
+| Anime Data Source | AniList GraphQL API (https://graphql.anilist.co) — see [API docs](https://docs.anilist.co/) |
 | Hosting | tenvexai.com subdomain (deployment method TBD) |
 
 ---
@@ -133,7 +133,9 @@ When a user adds an anime to a list, the following data is stored:
 | Field | AniList Source |
 |---|---|
 | AniList ID | `media.id` |
-| Title (English + Romaji) | `media.title.english`, `media.title.romaji` |
+| Title (English) | `media.title.english` |
+| Title (Romaji) | `media.title.romaji` (used for search; not displayed directly) |
+| Title (Japanese / Native) | `media.title.native` |
 | Cover image | `media.coverImage.large` |
 | Banner image | `media.bannerImage` |
 | Format | `media.format` (TV, MOVIE, OVA, ONA, SPECIAL, etc.) |
@@ -178,7 +180,7 @@ Each service is displayed as a tag/badge on the anime entry.
 
 The list editor view provides:
 
-- **Anime search bar** — Search AniList by title; results show cover art, format, year, and genres for easy identification. Click to add to list.
+- **Anime search bar** — Search AniList by title (matches against English, Romaji, and Japanese titles); results show cover art, English title, Japanese title, format, year, and genres for easy identification. Click to add to list.
 - **Inline rating** — Each entry shows four score sliders or input fields. Updating a score instantly recalculates the overall score and re-sorts the list.
 - **Streaming tag editor** — Auto-populated tags with the ability to add/remove.
 - **Notes field** — Expandable text area per entry.
@@ -213,7 +215,7 @@ A single search bar with contextual results. The search returns results across t
 |---|---|---|
 | By user | Username / display name | User profile cards with public list count |
 | By list title | List title, list description | List cards with title, author, entry count, like count |
-| By anime | Anime titles within public lists | Lists that contain the matched anime, showing that anime's rank in each list |
+| By anime | Anime English, Romaji, or Japanese titles within public lists | Lists that contain the matched anime, showing that anime's rank in each list |
 
 Search should be debounced (300ms) and show results grouped by type. Each result links to the corresponding profile, list, or filtered view.
 
@@ -249,7 +251,7 @@ Each anime entry displayed as a card/row in rank order:
 
 1. **Rank number** (prominently displayed)
 2. **Cover image**
-3. **Title** (English preferred, Romaji fallback)
+3. **Title** (English title displayed prominently; Japanese native title displayed below or beside it)
 4. **Format badge** (TV, Movie, OVA, etc.)
 5. **Four category scores** (displayed as a mini score breakdown)
 6. **Overall weighted score** (prominently displayed)
@@ -314,7 +316,8 @@ CREATE TABLE profiles (
 CREATE TABLE anime_cache (
     anilist_id INTEGER PRIMARY KEY,
     title_english TEXT,
-    title_romaji TEXT,
+    title_romaji TEXT,       -- used for search matching; not displayed in UI
+    title_native TEXT,        -- Japanese title
     cover_image_url TEXT,
     banner_image_url TEXT,
     format TEXT,  -- TV, MOVIE, OVA, ONA, SPECIAL
@@ -426,6 +429,8 @@ To reduce AniList API calls and improve performance:
 
 ## 10. AniList API Integration
 
+> **Reference:** Full API documentation is available at [https://docs.anilist.co/](https://docs.anilist.co/). All queries target the endpoint `https://graphql.anilist.co`. Refer to the docs for schema details, pagination, and rate-limit headers.
+
 ### 10.1 Search Query
 
 ```graphql
@@ -442,6 +447,7 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
             title {
                 english
                 romaji
+                native
             }
             coverImage {
                 large
@@ -506,10 +512,26 @@ AniList allows 90 requests per minute. The app should:
 
 ### 12.1 Design Direction
 
-- Dark theme primary (anime community preference), with optional light mode.
+- Dark theme, use the same theme/colors in our website, https://tenvexai.com, you can see the code here: https://github.com/TenVexAI/tenvexai-website.
 - Cover art-forward design — anime covers should be prominent throughout.
 - Responsive — mobile-friendly, but desktop is the primary experience.
 - Score visualization — consider color-coded score badges (red → yellow → green gradient from 0–10).
+- For Japanese characters, use the Google Font (yuji_mai)
+- For Headers, use the PixelCode font included in frontend/public/fonts/ 
+
+### 12.1.1 Colors
+
+  --color-bg-primary: #141414;
+  --color-bg-secondary: #313131;
+  --color-accent-purple: #a287f4;
+  --color-accent-cyan: #12e6c8;
+  --color-accent-green: #3cf281;
+  --color-accent-red: #e44c55;
+  --color-accent-yellow: #ffc107;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #a0a0a0;
+  --color-border: #2a5a5e;
+
 
 ### 12.2 Key Interactions
 
@@ -541,7 +563,7 @@ These features are explicitly out of scope for MVP but worth designing around:
 |---|---|
 | Backend | Supabase (Postgres + Auth + RLS) |
 | Auth providers | Twitch, Discord, GitHub |
-| Anime API | AniList GraphQL |
+| Anime API | AniList GraphQL ([docs](https://docs.anilist.co/)) |
 | List type | Mixed (shows and movies in one list) |
 | List ownership | Individual (no collaborative lists for MVP) |
 | Ranking method | Weighted average of 4 categories, user-defined weights per list |

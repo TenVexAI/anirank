@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* PixelCode font for headers */
+@font-face {
+  font-family: 'PixelCode';
+  src: url('/fonts/PixelCode.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PixelCode';
+  src: url('/fonts/PixelCode-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PixelCode';
+  src: url('/fonts/PixelCode-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PixelCode';
+  src: url('/fonts/PixelCode-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PixelCode';
+  src: url('/fonts/PixelCode-ExtraBold.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Yuji Mai is loaded via Google Fonts in index.html for Japanese characters */
+
+@theme {
+  --font-pixel: 'PixelCode', monospace;
+  --font-japanese: 'Yuji Mai', serif;
+
+  --color-bg-primary: #141414;
+  --color-bg-secondary: #313131;
+  --color-accent-purple: #a287f4;
+  --color-accent-cyan: #12e6c8;
+  --color-accent-green: #3cf281;
+  --color-accent-red: #e44c55;
+  --color-accent-yellow: #ffc107;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #a0a0a0;
+  --color-border: #2a5a5e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-pixel);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
