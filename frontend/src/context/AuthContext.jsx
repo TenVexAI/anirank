@@ -31,26 +31,22 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Initialize auth state via onAuthStateChange (handles all events including init)
+  // Initialize auth state via onAuthStateChange
+  // IMPORTANT: Do NOT make Supabase API calls inside onAuthStateChange callback.
+  // The SDK may not have finished updating the internal session when it fires.
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
 
-    // onAuthStateChange fires INITIAL_SESSION on setup, then handles
-    // SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc. automatically.
-    // The SDK handles token refresh internally via autoRefreshToken.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
-        if (newSession?.user) {
-          await fetchProfile(newSession.user.id).catch(() => null);
-        } else {
+        if (!newSession?.user) {
           setProfile(null);
         }
 
-        // Only set loading false after the initial session is resolved
         if (event === 'INITIAL_SESSION') {
           setLoading(false);
         }
@@ -60,7 +56,17 @@ export function AuthProvider({ children }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, []);
+
+  // Fetch profile separately when user changes — this runs AFTER the SDK
+  // has fully updated the session, so API calls use a valid token.
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user.id);
+    } else {
+      setProfile(null);
+    }
+  }, [user, fetchProfile]);
 
   const signInWithProvider = async (provider) => {
     const { error } = await supabase.auth.signInWithOAuth({
