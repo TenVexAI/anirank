@@ -73,14 +73,48 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
 }
 `;
 
-export async function searchAnime(search, page = 1, perPage = 10) {
+const SEARCH_CHARACTER_QUERY = `
+query SearchCharacter($search: String!, $page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo {
+      total
+      currentPage
+      lastPage
+      hasNextPage
+    }
+    characters(search: $search, sort: SEARCH_MATCH) {
+      id
+      name {
+        full
+        native
+        userPreferred
+      }
+      image {
+        large
+        medium
+      }
+      media(perPage: 3, type: ANIME) {
+        nodes {
+          id
+          title {
+            english
+            romaji
+          }
+          coverImage {
+            medium
+          }
+        }
+      }
+    }
+  }
+}
+`;
+
+async function anilistFetch(query, variables) {
   const response = await fetch(ANILIST_API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: SEARCH_ANIME_QUERY,
-      variables: { search, page, perPage },
-    }),
+    body: JSON.stringify({ query, variables }),
   });
 
   if (!response.ok) {
@@ -97,4 +131,12 @@ export async function searchAnime(search, page = 1, perPage = 10) {
   }
 
   return json.data.Page;
+}
+
+export async function searchAnime(search, page = 1, perPage = 10) {
+  return anilistFetch(SEARCH_ANIME_QUERY, { search, page, perPage });
+}
+
+export async function searchCharacters(search, page = 1, perPage = 10) {
+  return anilistFetch(SEARCH_CHARACTER_QUERY, { search, page, perPage });
 }
