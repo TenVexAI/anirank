@@ -50,6 +50,10 @@ function HomePage() {
           Create, curate, and share personalized ranked anime lists.
         </p>
         <div className="flex justify-center gap-4">
+          <Link to="/search"
+            className="px-6 py-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg font-medium hover:border-[var(--color-accent-cyan)] transition-colors flex items-center gap-2">
+            <Search size={16} /> Search
+          </Link>
           {!authLoading && user ? (
             <Link to="/dashboard"
               className="px-6 py-3 bg-[var(--color-accent-cyan)] text-[var(--color-bg-primary)] rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2">
@@ -61,10 +65,6 @@ function HomePage() {
               Get Started
             </Link>
           ) : null}
-          <Link to="/search"
-            className="px-6 py-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg font-medium hover:border-[var(--color-accent-cyan)] transition-colors flex items-center gap-2">
-            <Search size={16} /> Search
-          </Link>
         </div>
       </div>
 
