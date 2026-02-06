@@ -58,15 +58,45 @@ Users log in via one of three OAuth providers, all natively supported by Supabas
 | Field | Source | Editable |
 |---|---|---|
 | Username / display name | Auto-populated from OAuth provider | Yes |
-| Avatar | Auto-populated from OAuth provider | Yes (upload or URL) |
+| Avatar | Auto-populated from OAuth provider | Yes (custom upload or anime character; see §4.3) |
 | Bio | Empty by default | Yes |
+| Preferred weights | Default: equal (1, 1, 1, 1) | Yes (see §4.3) |
 | Joined date | Auto-set on first login | No |
 
-### 4.2 Profile Page (`/user/:username`)
+### 4.2 Avatar Selection
+
+Users have three options for their profile avatar:
+
+1. **OAuth default** — On first login the avatar is auto-populated from the OAuth provider (Twitch, Discord, or GitHub profile picture). This is the default until the user changes it.
+
+2. **Custom upload** — The user uploads an image file (JPEG, PNG, WebP; max 2 MB). The file is stored in a **Supabase Storage bucket** (`avatars`), and the resulting public URL is saved in `profiles.avatar_url`. Previous uploads are deleted to avoid orphaned files.
+
+3. **Anime character** — The user searches for an anime character by name using the AniList API (see §10.3). Search results display the character's name and image. When a character is selected, their `image.large` URL from AniList is stored directly in `profiles.avatar_url`, and the character's AniList ID and name are stored in `profiles.avatar_character_id` and `profiles.avatar_character_name` for attribution.
+
+The profile page and all avatar displays (comments, list cards, navbar) use `profiles.avatar_url` as the single image source regardless of which method was used.
+
+### 4.3 Weight Preferences
+
+Each user has personal **preferred weights** for the four rating categories (Technical Execution, Storytelling, Personal Enjoyment, X-Factor). These are stored on the user's profile and default to equal weights (`1, 1, 1, 1`).
+
+The user can edit their preferred weights from their profile settings page.
+
+When viewing **any public list**, a weight toggle is displayed in the list header with three modes:
+
+| Mode | Behavior |
+|---|---|
+| **Creator's weights** (default) | Uses the weights the list creator defined for that list (stored on the `lists` table). This is the default view. |
+| **My weights** | Re-calculates overall scores and re-ranks entries using the viewing user's preferred weights from their profile. Only available to authenticated users. |
+| **Even weights** | Re-calculates with equal weights (1, 1, 1, 1) — a simple average of the four scores. Available to all viewers. |
+
+The toggle re-sorts entries **client-side** in real time; no additional API calls are needed since all four category scores per entry are already loaded. The currently active mode is visually indicated. When the mode changes, entries animate to their new rank positions.
+
+### 4.4 Profile Page (`/user/:username`)
 
 Displays:
 
 - Avatar, display name, bio
+- Preferred weights (displayed as a small summary, e.g., "Tech ×1 | Story ×2 | Enjoy ×1.5 | X ×1")
 - Join date
 - Count of public lists
 - List of all public lists by this user (sorted by most recent)
@@ -136,17 +166,22 @@ When a user adds an anime to a list, the following data is stored:
 | Title (English) | `media.title.english` |
 | Title (Romaji) | `media.title.romaji` (used for search; not displayed directly) |
 | Title (Japanese / Native) | `media.title.native` |
+| Synonyms | `media.synonyms` (alternative titles; improves local search matching) |
 | Cover image | `media.coverImage.large` |
 | Banner image | `media.bannerImage` |
 | Format | `media.format` (TV, MOVIE, OVA, ONA, SPECIAL, etc.) |
+| Status | `media.status` (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS) |
+| Source material | `media.source` (ORIGINAL, MANGA, LIGHT_NOVEL, VISUAL_NOVEL, VIDEO_GAME, etc.) |
 | Genres | `media.genres` |
 | Tags | `media.tags` (with spoiler filtering) |
 | Description / Synopsis | `media.description` |
 | Average score | `media.averageScore` |
 | Episodes / Duration | `media.episodes`, `media.duration` |
-| Season / Year | `media.season`, `media.seasonYear` |
 | Studio(s) | `media.studios.nodes` |
+| Trailer | `media.trailer` (id, site, thumbnail — YouTube / Dailymotion embed) |
 | Streaming links | `media.externalLinks` (filtered to streaming type) |
+| Relations | `media.relations` (sequels, prequels, side stories, etc.) |
+| AniList page URL | `media.siteUrl` (direct "View on AniList" link) |
 
 **User-provided per entry:**
 
@@ -241,7 +276,8 @@ When viewing a public list, the page shows:
 **Header:**
 - List title and description
 - Author avatar + display name (links to profile)
-- Category weights displayed (e.g., "Weights: Technical ×1 | Story ×2 | Enjoyment ×1.5 | X-Factor ×1")
+- **Weight viewing mode toggle** (see §4.3): Creator's weights | My weights | Even weights
+- Active weights displayed (e.g., "Weights: Technical ×1 | Story ×2 | Enjoyment ×1.5 | X-Factor ×1")
 - Like button + like count
 - Last updated date
 
@@ -260,7 +296,12 @@ Each anime entry displayed as a card/row in rank order:
 9. **Synopsis** (truncated, expandable)
 10. **Personal notes/review** (expandable section if present)
 11. **AniList average score** (for reference/comparison)
-12. **Studio(s) and year**
+12. **Studio(s)**
+13. **Source material** (Original, Manga, Light Novel, etc.)
+14. **Status badge** (Finished, Releasing, etc.)
+15. **Trailer embed** (YouTube / Dailymotion, if available)
+16. **Related anime** (sequels, prequels, side stories — linking to other entries in the list if present)
+17. **"View on AniList" link**
 
 ### 7.2 Comments Section
 
@@ -307,7 +348,13 @@ CREATE TABLE profiles (
     username TEXT UNIQUE NOT NULL,
     display_name TEXT,
     avatar_url TEXT,
+    avatar_character_id INTEGER,      -- AniList character ID (null if custom upload or OAuth default)
+    avatar_character_name TEXT,        -- character name for attribution
     bio TEXT DEFAULT '',
+    pref_weight_technical NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_storytelling NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_enjoyment NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_xfactor NUMERIC(4,2) DEFAULT 1.00,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -318,19 +365,23 @@ CREATE TABLE anime_cache (
     title_english TEXT,
     title_romaji TEXT,       -- used for search matching; not displayed in UI
     title_native TEXT,        -- Japanese title
+    synonyms TEXT[],          -- alternative titles for search matching
     cover_image_url TEXT,
     banner_image_url TEXT,
-    format TEXT,  -- TV, MOVIE, OVA, ONA, SPECIAL
+    format TEXT,              -- TV, MOVIE, OVA, ONA, SPECIAL
+    status TEXT,              -- FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS
+    source TEXT,              -- ORIGINAL, MANGA, LIGHT_NOVEL, VISUAL_NOVEL, VIDEO_GAME, etc.
     genres TEXT[],
-    tags JSONB,  -- [{name, rank, isMediaSpoiler}]
+    tags JSONB,               -- [{name, rank, isMediaSpoiler}]
     description TEXT,
     average_score INTEGER,
     episodes INTEGER,
     duration INTEGER,
-    season TEXT,
-    season_year INTEGER,
-    studios JSONB,  -- [{name, isAnimationStudio}]
-    external_links JSONB,  -- [{site, url, type}]
+    studios JSONB,            -- [{name, isAnimationStudio}]
+    trailer JSONB,            -- {id, site, thumbnail}
+    external_links JSONB,     -- [{site, url, type}]
+    relations JSONB,          -- [{id, relationType, title, format, status, coverImage}]
+    site_url TEXT,            -- direct AniList page URL
     cached_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -449,11 +500,14 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
                 romaji
                 native
             }
+            synonyms
             coverImage {
                 large
             }
             bannerImage
             format
+            status
+            source
             genres
             tags {
                 name
@@ -464,25 +518,87 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
             averageScore
             episodes
             duration
-            season
-            seasonYear
             studios {
                 nodes {
                     name
                     isAnimationStudio
                 }
             }
+            trailer {
+                id
+                site
+                thumbnail
+            }
             externalLinks {
                 site
                 url
                 type
+            }
+            relations {
+                edges {
+                    relationType
+                    node {
+                        id
+                        title {
+                            english
+                            romaji
+                        }
+                        format
+                        status
+                        coverImage {
+                            medium
+                        }
+                    }
+                }
+            }
+            siteUrl
+        }
+    }
+}
+```
+
+### 10.2 Character Search Query (Avatar Selection)
+
+```graphql
+query SearchCharacter($search: String!, $page: Int, $perPage: Int) {
+    Page(page: $page, perPage: $perPage) {
+        pageInfo {
+            total
+            currentPage
+            lastPage
+            hasNextPage
+        }
+        characters(search: $search, sort: SEARCH_MATCH) {
+            id
+            name {
+                full
+                native
+                userPreferred
+            }
+            image {
+                large
+                medium
+            }
+            media(perPage: 3, type: ANIME) {
+                nodes {
+                    id
+                    title {
+                        english
+                        romaji
+                    }
+                    coverImage {
+                        medium
+                    }
+                }
             }
         }
     }
 }
 ```
 
-### 10.2 Rate Limiting
+This query is used in the avatar selection flow (§4.2). Results show the character's name, image, and up to 3 anime they appear in for disambiguation (e.g., distinguishing "Sakura" from different series). Only `image.large` and the character `id` / `name.userPreferred` are persisted to the profile.
+
+### 10.3 Rate Limiting
 
 AniList allows 90 requests per minute. The app should:
 
@@ -566,9 +682,27 @@ These features are explicitly out of scope for MVP but worth designing around:
 | Anime API | AniList GraphQL ([docs](https://docs.anilist.co/)) |
 | List type | Mixed (shows and movies in one list) |
 | List ownership | Individual (no collaborative lists for MVP) |
-| Ranking method | Weighted average of 4 categories, user-defined weights per list |
+| Ranking method | Weighted average of 4 categories, user-defined weights per list + per-user preferred weights for alternate views |
 | Streaming tags | Auto-populated from AniList + manual user edits |
 | Default visibility | Private |
 | Comments | Enabled on public lists |
 | Likes | One per user per list, cannot like own |
-| Profile | Avatar, bio, public list display |
+| Profile | Avatar, bio, preferred weights, public list display |
+
+---
+
+## 15. Development Roadmap
+
+The following is the planned build order for MVP development. Each phase should be functionally complete and testable before moving to the next.
+
+| Phase | Scope | Key Deliverables |
+|---|---|---|
+| **1. Auth Flow** | Login, logout, session persistence | OAuth login page (Twitch, Discord, GitHub), redirect handling, AuthContext, protected routes, auto-create profile on first login |
+| **2. Profile System** | Profile CRUD, avatar, weight preferences | Profile page, edit profile (display name, bio, preferred weights), avatar upload to Supabase Storage, anime character avatar search via AniList, profile settings page |
+| **3. AniList Search** | Anime search integration | Search page with debounced input, result cards with cover/title/format/status, detail modal or expandable view, client-side caching of results |
+| **4. List CRUD** | Create, edit settings, delete lists | New list form (title, description, weights, visibility), dashboard with list management, edit list settings, delete with confirmation |
+| **5. List Editor** | Add anime, score, rank | Anime search within editor, add entries to list, score entries across 4 categories (sliders/inputs), auto-ranking by weighted score, remove entries, personal notes |
+| **6. List Detail View** | Public ranked view | Full ranked entry display with all metadata, weight viewing toggle (creator/my/even), streaming badges, trailer embeds, relations, "View on AniList" links |
+| **7. Discovery & Main Page** | Homepage, search lists | Featured/recent public lists, search public lists, list cards with preview info |
+| **8. Social Features** | Likes & comments | Like/unlike public lists, comment on public lists, optimistic UI updates |
+| **9. Polish** | UX, responsive, edge cases | Mobile responsiveness, loading states, error boundaries, empty states, animations (rank re-sort, page transitions), rate-limit handling |

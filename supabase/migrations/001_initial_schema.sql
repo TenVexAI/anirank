@@ -4,7 +4,13 @@ CREATE TABLE profiles (
     username TEXT UNIQUE NOT NULL,
     display_name TEXT,
     avatar_url TEXT,
+    avatar_character_id INTEGER,      -- AniList character ID (null if custom upload or OAuth default)
+    avatar_character_name TEXT,        -- character name for attribution
     bio TEXT DEFAULT '',
+    pref_weight_technical NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_storytelling NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_enjoyment NUMERIC(4,2) DEFAULT 1.00,
+    pref_weight_xfactor NUMERIC(4,2) DEFAULT 1.00,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -15,19 +21,23 @@ CREATE TABLE anime_cache (
     title_english TEXT,
     title_romaji TEXT,       -- used for search matching; not displayed in UI
     title_native TEXT,        -- Japanese title
+    synonyms TEXT[],          -- alternative titles for search matching
     cover_image_url TEXT,
     banner_image_url TEXT,
-    format TEXT,  -- TV, MOVIE, OVA, ONA, SPECIAL
+    format TEXT,              -- TV, MOVIE, OVA, ONA, SPECIAL
+    status TEXT,              -- FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS
+    source TEXT,              -- ORIGINAL, MANGA, LIGHT_NOVEL, VISUAL_NOVEL, VIDEO_GAME, etc.
     genres TEXT[],
-    tags JSONB,  -- [{name, rank, isMediaSpoiler}]
+    tags JSONB,               -- [{name, rank, isMediaSpoiler}]
     description TEXT,
     average_score INTEGER,
     episodes INTEGER,
     duration INTEGER,
-    season TEXT,
-    season_year INTEGER,
-    studios JSONB,  -- [{name, isAnimationStudio}]
-    external_links JSONB,  -- [{site, url, type}]
+    studios JSONB,            -- [{name, isAnimationStudio}]
+    trailer JSONB,            -- {id, site, thumbnail}
+    external_links JSONB,     -- [{site, url, type}]
+    relations JSONB,          -- [{id, relationType, title, format, status, coverImage}]
+    site_url TEXT,            -- direct AniList page URL
     cached_at TIMESTAMPTZ DEFAULT now()
 );
 

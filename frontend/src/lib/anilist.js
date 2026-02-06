@@ -16,11 +16,14 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
         romaji
         native
       }
+      synonyms
       coverImage {
         large
       }
       bannerImage
       format
+      status
+      source
       genres
       tags {
         name
@@ -31,19 +34,40 @@ query SearchAnime($search: String!, $page: Int, $perPage: Int) {
       averageScore
       episodes
       duration
-      season
-      seasonYear
       studios {
         nodes {
           name
           isAnimationStudio
         }
       }
+      trailer {
+        id
+        site
+        thumbnail
+      }
       externalLinks {
         site
         url
         type
       }
+      relations {
+        edges {
+          relationType
+          node {
+            id
+            title {
+              english
+              romaji
+            }
+            format
+            status
+            coverImage {
+              medium
+            }
+          }
+        }
+      }
+      siteUrl
     }
   }
 }
