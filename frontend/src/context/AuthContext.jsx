@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const initRef = useRef(false);
 
   const fetchProfile = useCallback(async (userId) => {
@@ -62,9 +63,11 @@ export function AuthProvider({ children }) {
   // has fully updated the session, so API calls use a valid token.
   useEffect(() => {
     if (user) {
-      fetchProfile(user.id);
+      setProfileLoading(true);
+      fetchProfile(user.id).finally(() => setProfileLoading(false));
     } else {
       setProfile(null);
+      setProfileLoading(false);
     }
   }, [user, fetchProfile]);
 
@@ -88,7 +91,7 @@ export function AuthProvider({ children }) {
     user,
     profile,
     session,
-    loading,
+    loading: loading || profileLoading,
     signInWithProvider,
     signOut,
     fetchProfile,
