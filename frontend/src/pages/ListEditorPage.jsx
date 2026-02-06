@@ -102,7 +102,7 @@ function ListEditorPage() {
         .map((id) => map.get(id))
         .filter(Boolean);
       for (const e of sorted) {
-        if (!frozenIds.has(e.id)) result.push(e);
+        if (!frozenIds.has(e.id)) result.unshift(e);
       }
       frozenOrderRef.current = result.map((e) => e.id);
       return result;
@@ -306,7 +306,7 @@ function ListEditorPage() {
             Settings
           </button>
           <button
-            onClick={() => setShowSearch(!showSearch)}
+            onClick={() => { setExpandedEntry(null); setShowSearch(!showSearch); }}
             className="px-4 py-2 text-sm bg-[var(--color-accent-green)] text-[var(--color-bg-primary)] rounded font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5"
           >
             <Plus size={16} /> Add Anime
