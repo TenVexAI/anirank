@@ -39,14 +39,45 @@ export function AuthProvider({ children }) {
 
     async function init() {
       try {
-        const { data: { session: s } } = await supabase.auth.getSession();
-        setSession(s);
-        setUser(s?.user ?? null);
-        if (s?.user) {
+        const { data: { session: s }, error } = await supabase.auth.getSession();
+        if (error || !s) {
+          // No valid session — clear any stale tokens from localStorage
+          await supabase.auth.signOut().catch(() => {});
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+
+        // Check if the access token is expired and try to refresh
+        const expiresAt = s.expires_at;
+        const now = Math.floor(Date.now() / 1000);
+        if (expiresAt && now >= expiresAt) {
+          const { data: { session: refreshed }, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshed) {
+            console.warn('Session expired and refresh failed, signing out');
+            await supabase.auth.signOut().catch(() => {});
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+            return;
+          }
+          setSession(refreshed);
+          setUser(refreshed.user);
+          await fetchProfile(refreshed.user.id);
+        } else {
+          setSession(s);
+          setUser(s.user);
           await fetchProfile(s.user.id);
         }
       } catch (err) {
         console.warn('Auth init error:', err.name);
+        await supabase.auth.signOut().catch(() => {});
+        setSession(null);
+        setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     }
@@ -71,6 +102,8 @@ export function AuthProvider({ children }) {
     const interval = setInterval(async () => {
       const { data: { session: s }, error } = await supabase.auth.getSession();
       if (error || !s) {
+        // Clear stale tokens from localStorage
+        await supabase.auth.signOut().catch(() => {});
         setSession(null);
         setUser(null);
         setProfile(null);
