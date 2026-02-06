@@ -67,8 +67,19 @@ export function AuthProvider({ children }) {
       }
     );
 
+    // Periodically verify session is still valid (every 5 minutes)
+    const interval = setInterval(async () => {
+      const { data: { session: s }, error } = await supabase.auth.getSession();
+      if (error || !s) {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      }
+    }, 5 * 60 * 1000);
+
     return () => {
       subscription.unsubscribe();
+      clearInterval(interval);
     };
   }, [fetchProfile]);
 
