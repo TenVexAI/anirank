@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { searchCharacters } from '../lib/anilist';
-import { Upload, Search, X, Save, ArrowLeft, Link2, Unlink, Github } from 'lucide-react';
+import { Upload, Search, X, Save, ArrowLeft, Link2, Unlink } from 'lucide-react';
+import { TwitchIcon, DiscordIcon, GithubIcon } from '../components/ui/BrandIcons';
 import { SCORE_CATEGORIES } from '../utils/categories';
 
 function ProfileSettingsPage() {
@@ -409,7 +410,7 @@ function ProfileSettingsPage() {
                 className="flex items-center justify-between p-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg">
                 <div className="flex items-center gap-3">
                   <span className="text-lg" style={{ color: colors[provider] }}>
-                    {provider === 'github' ? <Github size={20} /> : labels[provider][0]}
+                    {provider === 'github' ? <GithubIcon size={20} /> : provider === 'discord' ? <DiscordIcon size={20} /> : <TwitchIcon size={20} />}
                   </span>
                   <div>
                     <p className="text-sm font-medium text-[var(--color-text-primary)]">{labels[provider]}</p>

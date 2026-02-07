@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Twitch, MessageCircle, Github } from 'lucide-react';
+import { TwitchIcon, DiscordIcon, GithubIcon } from '../components/ui/BrandIcons';
 
 const providers = [
-  { id: 'twitch', label: 'Twitch', color: '#9146FF', icon: Twitch },
-  { id: 'discord', label: 'Discord', color: '#5865F2', icon: MessageCircle },
-  { id: 'github', label: 'GitHub', color: '#333', icon: Github },
+  { id: 'twitch', label: 'Twitch', color: '#9146FF', icon: TwitchIcon },
+  { id: 'discord', label: 'Discord', color: '#5865F2', icon: DiscordIcon },
+  { id: 'github', label: 'GitHub', color: '#333', icon: GithubIcon },
 ];
 
 function LoginPage() {
