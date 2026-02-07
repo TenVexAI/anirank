@@ -8,7 +8,7 @@ import { SCORE_CATEGORIES } from '../utils/categories';
 import Comments from '../components/lists/Comments';
 
 const FORMAT_LABELS = { TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', SPECIAL: 'Special', OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music' };
-const WEIGHT_MODES = { creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights', custom: 'Custom Order' };
+const WEIGHT_MODES = { custom: 'Custom Order', creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights' };
 
 function ListDetailPage() {
   const { id } = useParams();
@@ -22,7 +22,7 @@ function ListDetailPage() {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [expandedId, setExpandedId] = useState(null);
-  const [weightMode, setWeightMode] = useState('creator');
+  const [weightMode, setWeightMode] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
@@ -51,6 +51,7 @@ function ListDetailPage() {
     setList(listData);
     setOwner(listData.profiles);
     setLikeCount(listData.like_count || 0);
+    setWeightMode(listData.rank_override_enabled ? 'custom' : 'creator');
 
     const { data: entriesData } = await supabase
       .from('list_entries')
