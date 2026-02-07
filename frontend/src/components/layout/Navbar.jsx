@@ -28,7 +28,7 @@ function Navbar() {
   return (
     <nav className="bg-[var(--color-bg-secondary)] border-b border-[var(--color-border)] px-6 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" className="font-[var(--font-pixel)] text-2xl text-[var(--color-accent-purple)] hover:text-[var(--color-accent-cyan)] transition-colors">
+        <Link to="/" className="font-pixel text-2xl text-[var(--color-accent-purple)] hover:text-[var(--color-accent-cyan)] transition-colors">
           AniRank
         </Link>
 
