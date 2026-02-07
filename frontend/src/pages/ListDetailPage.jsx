@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { rankEntries } from '../utils/scoring';
-import { Heart, Pencil, ExternalLink, Clock, Tv, Film, ChevronDown, ChevronUp, Scale } from 'lucide-react';
+import { rankEntries, calculateOverallScore } from '../utils/scoring';
+import { Heart, Pencil, ExternalLink, Clock, Tv, Film, ChevronDown, ChevronUp, Scale, Share2, Check } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 import Comments from '../components/lists/Comments';
 
 const FORMAT_LABELS = { TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', SPECIAL: 'Special', OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music' };
-const WEIGHT_MODES = { creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights' };
+const WEIGHT_MODES = { creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights', custom: 'Custom Order' };
 
 function ListDetailPage() {
   const { id } = useParams();
@@ -23,6 +23,7 @@ function ListDetailPage() {
   const [likeCount, setLikeCount] = useState(0);
   const [expandedId, setExpandedId] = useState(null);
   const [weightMode, setWeightMode] = useState('creator');
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     loadList();
@@ -76,12 +77,10 @@ function ListDetailPage() {
       await supabase.from('likes').delete().eq('user_id', user.id).eq('list_id', id);
       setLiked(false);
       setLikeCount((c) => c - 1);
-      await supabase.from('lists').update({ like_count: likeCount - 1 }).eq('id', id);
     } else {
       await supabase.from('likes').insert({ user_id: user.id, list_id: id });
       setLiked(true);
       setLikeCount((c) => c + 1);
-      await supabase.from('lists').update({ like_count: likeCount + 1 }).eq('id', id);
     }
   };
 
@@ -121,8 +120,18 @@ function ListDetailPage() {
   }
 
   const activeWeights = getActiveWeights();
-  const ranked = rankEntries(entries, activeWeights);
+  const ranked = weightMode === 'custom'
+    ? [...entries]
+        .map((e) => ({ ...e, overallScore: calculateOverallScore({ technical: e.score_technical, storytelling: e.score_storytelling, enjoyment: e.score_enjoyment, xfactor: e.score_xfactor }, activeWeights) }))
+        .sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity))
+    : rankEntries(entries, activeWeights);
   const isOwner = user && list.user_id === user.id;
+
+  const handleShare = async () => {
+    await navigator.clipboard.writeText(window.location.href);
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  };
 
   const weightLabels = [
     { key: 'technical', label: 'Tech' },
@@ -149,6 +158,10 @@ function ListDetailPage() {
                 <Pencil size={18} />
               </Link>
             )}
+            <button onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
+              {shareCopied ? <><Check size={14} /> Copied!</> : <><Share2 size={14} /> Share</>}
+            </button>
             {user && !isOwner && (
               <button onClick={toggleLike}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
@@ -190,6 +203,7 @@ function ListDetailPage() {
           <div className="flex gap-1">
             {Object.entries(WEIGHT_MODES).map(([key, label]) => {
               if (key === 'user' && !user) return null;
+              if (key === 'custom' && !list.rank_override_enabled) return null;
               return (
                 <button key={key} onClick={() => setWeightMode(key)}
                   className={`px-2.5 py-1 rounded text-xs transition-colors ${

@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { searchAnime } from '../lib/anilist';
 import { rankEntries } from '../utils/scoring';
-import { ArrowLeft, Search, Plus, X, Trash2, ChevronDown, ChevronUp, Save, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Search, Plus, X, Trash2, ChevronDown, ChevronUp, Save, Eye, EyeOff, ExternalLink, GripVertical } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 
 function ListEditorPage() {
@@ -28,6 +28,11 @@ function ListEditorPage() {
 
   // Expanded entry for scoring
   const [expandedEntry, setExpandedEntry] = useState(null);
+
+  // Override rank (manual ordering)
+  const [rankOverride, setRankOverride] = useState(false);
+  const dragItemRef = useRef(null);
+  const dragOverItemRef = useRef(null);
 
   // List settings
   const [showSettings, setShowSettings] = useState(false);
@@ -63,6 +68,7 @@ function ListEditorPage() {
     }
 
     setList(listData);
+    setRankOverride(!!listData.rank_override_enabled);
     setSettingsTitle(listData.title);
     setSettingsDesc(listData.description || '');
     setSettingsPublic(listData.is_public);
@@ -93,6 +99,14 @@ function ListEditorPage() {
 
   const rankedEntries = useMemo(() => {
     const sorted = rankEntries(entries, weights);
+
+    // Override rank mode: sort by manual_position
+    if (rankOverride) {
+      const manual = [...sorted].sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity));
+      frozenOrderRef.current = manual.map((e) => e.id);
+      return manual;
+    }
+
     if (expandedEntry && frozenOrderRef.current) {
       // While a panel is expanded, keep the frozen order and just update scores in place
       const frozenIds = new Set(frozenOrderRef.current);
@@ -110,7 +124,7 @@ function ListEditorPage() {
     // When collapsed, sort normally and snapshot the order
     frozenOrderRef.current = sorted.map((e) => e.id);
     return sorted;
-  }, [entries, weights, expandedEntry]);
+  }, [entries, weights, expandedEntry, rankOverride]);
 
   // Anime search
   const performSearch = useCallback(async (q) => {
@@ -172,14 +186,24 @@ function ListEditorPage() {
 
     await supabase.from('anime_cache').upsert(cacheData, { onConflict: 'anilist_id' });
 
-    // Insert entry
+    // Insert entry (assign manual_position if override is on)
+    const insertData = {
+      list_id: id,
+      anilist_id: anime.id,
+      streaming_services: (anime.externalLinks || []).filter((l) => l.type === 'STREAMING').map((l) => l.site),
+    };
+    if (rankOverride) {
+      // Put new entry at position 0 (top), shift others down
+      const shifted = entries.map((e) => ({ ...e, manual_position: (e.manual_position ?? 0) + 1 }));
+      setEntries(shifted);
+      await Promise.all(
+        shifted.map((e) => supabase.from('list_entries').update({ manual_position: e.manual_position }).eq('id', e.id))
+      );
+      insertData.manual_position = 0;
+    }
     const { data: newEntry, error: entryError } = await supabase
       .from('list_entries')
-      .insert({
-        list_id: id,
-        anilist_id: anime.id,
-        streaming_services: (anime.externalLinks || []).filter((l) => l.type === 'STREAMING').map((l) => l.site),
-      })
+      .insert(insertData)
       .select('*, anime_cache(*)')
       .single();
 
@@ -222,6 +246,70 @@ function ListEditorPage() {
     setEntries((prev) => prev.filter((e) => e.id !== entryId));
     await supabase.from('list_entries').delete().eq('id', entryId);
     await supabase.from('lists').update({ updated_at: new Date().toISOString() }).eq('id', id);
+  };
+
+  // Override Rank: toggle on/off
+  const toggleRankOverride = async () => {
+    const enabling = !rankOverride;
+    setExpandedEntry(null);
+
+    if (enabling) {
+      // Assign manual_position based on current weighted order
+      const sorted = rankEntries(entries, weights);
+      const updates = sorted.map((e, i) => ({ ...e, manual_position: i }));
+      setEntries(updates);
+      // Persist positions to DB
+      await Promise.all(
+        updates.map((e, i) =>
+          supabase.from('list_entries').update({ manual_position: i }).eq('id', e.id)
+        )
+      );
+    }
+
+    setRankOverride(enabling);
+    await supabase.from('lists').update({
+      rank_override_enabled: enabling,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    setList((prev) => ({ ...prev, rank_override_enabled: enabling }));
+  };
+
+  // Drag-and-drop handlers for manual reordering
+  const handleDragStart = (index) => {
+    dragItemRef.current = index;
+  };
+
+  const handleDragEnter = (index) => {
+    dragOverItemRef.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    const from = dragItemRef.current;
+    const to = dragOverItemRef.current;
+    if (from === null || to === null || from === to) return;
+
+    const reordered = [...rankedEntries];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+
+    // Update manual_position in local state
+    const updated = reordered.map((e, i) => ({ ...e, manual_position: i }));
+    setEntries((prev) =>
+      prev.map((e) => {
+        const match = updated.find((u) => u.id === e.id);
+        return match ? { ...e, manual_position: match.manual_position } : e;
+      })
+    );
+
+    // Persist to DB
+    await Promise.all(
+      updated.map((e, i) =>
+        supabase.from('list_entries').update({ manual_position: i }).eq('id', e.id)
+      )
+    );
+
+    dragItemRef.current = null;
+    dragOverItemRef.current = null;
   };
 
   const saveSettings = async () => {
@@ -298,7 +386,17 @@ function ListEditorPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={toggleRankOverride}
+            className={`px-4 py-2 text-sm rounded font-medium flex items-center gap-1.5 transition-colors ${
+              rankOverride
+                ? 'bg-[var(--color-accent-yellow)]/20 border border-[var(--color-accent-yellow)]/50 text-[var(--color-accent-yellow)]'
+                : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            <GripVertical size={16} /> {rankOverride ? 'Override: ON' : 'Override Rank'}
+          </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="px-4 py-2 text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -441,13 +539,26 @@ function ListEditorPage() {
             const isExpanded = expandedEntry === entry.id;
 
             return (
-              <div key={entry.id} className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <div key={entry.id}
+                draggable={rankOverride}
+                onDragStart={() => handleDragStart(index)}
+                onDragEnter={() => handleDragEnter(index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className={`bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden ${rankOverride ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                 {/* Entry Row */}
                 <div className="flex items-center gap-4 p-4">
-                  {/* Rank */}
-                  <span className="text-2xl font-bold text-[var(--color-accent-cyan)] w-8 text-center shrink-0">
-                    {index + 1}
-                  </span>
+                  {/* Drag Handle / Rank */}
+                  {rankOverride ? (
+                    <div className="flex flex-col items-center shrink-0 w-8">
+                      <GripVertical size={18} className="text-[var(--color-accent-yellow)] mb-0.5" />
+                      <span className="text-xs text-[var(--color-text-secondary)]">{index + 1}</span>
+                    </div>
+                  ) : (
+                    <span className="text-2xl font-bold text-[var(--color-accent-cyan)] w-8 text-center shrink-0">
+                      {index + 1}
+                    </span>
+                  )}
 
                   {/* Cover */}
                   <img src={anime.cover_image_url} alt={title} className="w-12 h-16 object-cover rounded shrink-0" />
