@@ -12,6 +12,7 @@ import CreateListPage from './pages/CreateListPage';
 import ProfilePage from './pages/ProfilePage';
 import ProfileSettingsPage from './pages/ProfileSettingsPage';
 import SearchPage from './pages/SearchPage';
+import ExplorePage from './pages/ExplorePage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 
 function NotFoundPage() {
@@ -41,6 +42,7 @@ function App() {
           <Route path="/user/:username" element={<ProfilePage />} />
           <Route path="/settings" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/explore" element={<ExplorePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>

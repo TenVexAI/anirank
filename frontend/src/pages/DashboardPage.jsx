@@ -42,6 +42,12 @@ function DashboardPage() {
     setLoading(false);
   }
 
+  const toggleVisibility = async (listId, currentPublic) => {
+    const newPublic = !currentPublic;
+    setMyLists((prev) => prev.map((l) => l.id === listId ? { ...l, is_public: newPublic } : l));
+    await supabase.from('lists').update({ is_public: newPublic, updated_at: new Date().toISOString() }).eq('id', listId);
+  };
+
   const handleDelete = async (listId, listTitle) => {
     if (!window.confirm(`Delete "${listTitle}"? This cannot be undone.`)) return;
     setDeleting(listId);
@@ -126,11 +132,17 @@ function DashboardPage() {
                       >
                         {list.title}
                       </Link>
-                      {list.is_public ? (
-                        <Eye size={14} className="text-[var(--color-accent-green)] shrink-0" title="Public" />
-                      ) : (
-                        <EyeOff size={14} className="text-[var(--color-text-secondary)] shrink-0" title="Private" />
-                      )}
+                      <button
+                        onClick={(e) => { e.preventDefault(); toggleVisibility(list.id, list.is_public); }}
+                        className="shrink-0 p-0.5 rounded hover:bg-[var(--color-bg-primary)] transition-colors"
+                        title={list.is_public ? 'Public — click to make private' : 'Private — click to make public'}
+                      >
+                        {list.is_public ? (
+                          <Eye size={14} className="text-[var(--color-accent-green)]" />
+                        ) : (
+                          <EyeOff size={14} className="text-[var(--color-text-secondary)]" />
+                        )}
+                      </button>
                     </div>
                     {list.description && (
                       <p className="text-sm text-[var(--color-text-secondary)] truncate">{list.description}</p>

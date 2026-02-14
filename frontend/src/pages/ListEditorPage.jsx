@@ -379,8 +379,19 @@ function ListEditorPage() {
           <div>
             <h1 className="text-2xl text-[var(--color-accent-cyan)]">{list.title}</h1>
             <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-              {list.is_public ? <Eye size={12} /> : <EyeOff size={12} />}
-              <span>{list.is_public ? 'Public' : 'Private'}</span>
+              <button
+                onClick={async () => {
+                  const newPublic = !list.is_public;
+                  setList((prev) => ({ ...prev, is_public: newPublic }));
+                  setSettingsPublic(newPublic);
+                  await supabase.from('lists').update({ is_public: newPublic, updated_at: new Date().toISOString() }).eq('id', id);
+                }}
+                className="flex items-center gap-1.5 hover:text-[var(--color-text-primary)] transition-colors"
+                title={list.is_public ? 'Public — click to make private' : 'Private — click to make public'}
+              >
+                {list.is_public ? <Eye size={12} className="text-[var(--color-accent-green)]" /> : <EyeOff size={12} />}
+                <span>{list.is_public ? 'Public' : 'Private'}</span>
+              </button>
               <span>·</span>
               <span>{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
             </div>

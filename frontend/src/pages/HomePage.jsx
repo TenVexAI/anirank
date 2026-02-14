@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Heart, TrendingUp, Clock, Search, ArrowRight } from 'lucide-react';
+import { Heart, TrendingUp, Clock, Search, ArrowRight, MessageSquare, Compass } from 'lucide-react';
 
 function HomePage() {
   const { user, loading: authLoading } = useAuth();
@@ -20,21 +20,37 @@ function HomePage() {
       const [popRes, recRes] = await Promise.all([
         supabase
           .from('lists')
-          .select('id, title, description, like_count, updated_at, profiles(display_name, username, avatar_url)')
+          .select('id, title, description, like_count, created_at, updated_at, profiles(display_name, username, avatar_url), comments(count)')
           .eq('is_public', true)
           .order('like_count', { ascending: false })
-          .limit(6),
+          .limit(20),
         supabase
           .from('lists')
-          .select('id, title, description, like_count, updated_at, profiles(display_name, username, avatar_url)')
+          .select('id, title, description, like_count, updated_at, profiles(display_name, username, avatar_url), comments(count)')
           .eq('is_public', true)
           .order('updated_at', { ascending: false })
           .limit(6),
       ]);
       if (popRes.error) console.error('Popular lists error:', popRes.error);
       if (recRes.error) console.error('Recent lists error:', recRes.error);
-      setPopularLists(popRes.data || []);
-      setRecentLists(recRes.data || []);
+
+      // Extract comment_count from nested aggregate
+      const withCommentCount = (arr) => (arr || []).map((l) => ({
+        ...l,
+        comment_count: l.comments?.[0]?.count ?? 0,
+      }));
+
+      // Sort popular: likes desc → comments desc → created_at asc (older first)
+      const popular = withCommentCount(popRes.data)
+        .sort((a, b) => {
+          if ((b.like_count || 0) !== (a.like_count || 0)) return (b.like_count || 0) - (a.like_count || 0);
+          if (b.comment_count !== a.comment_count) return b.comment_count - a.comment_count;
+          return new Date(a.created_at) - new Date(b.created_at);
+        })
+        .slice(0, 6);
+
+      setPopularLists(popular);
+      setRecentLists(withCommentCount(recRes.data));
     } catch (err) {
       console.error('Failed to load lists:', err);
     }
@@ -53,6 +69,10 @@ function HomePage() {
           <Link to="/search"
             className="px-6 py-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg font-medium hover:border-[var(--color-accent-cyan)] transition-colors flex items-center gap-2">
             <Search size={16} /> Search
+          </Link>
+          <Link to="/explore"
+            className="px-6 py-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] rounded-lg font-medium hover:border-[var(--color-accent-purple)] transition-colors flex items-center gap-2">
+            <Compass size={16} /> Explore
           </Link>
           {!authLoading && user ? (
             <Link to="/dashboard"
@@ -127,9 +147,14 @@ function ListSection({ title, icon, lists, emptyText }) {
                     <span className="text-xs text-[var(--color-text-secondary)]">{list.profiles.display_name}</span>
                   </div>
                 )}
-                <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
-                  <Heart size={10} /> {list.like_count || 0}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                    <Heart size={10} /> {list.like_count || 0}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                    <MessageSquare size={10} /> {list.comment_count || 0}
+                  </span>
+                </div>
               </div>
             </Link>
           ))}

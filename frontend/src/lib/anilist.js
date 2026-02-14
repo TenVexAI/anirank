@@ -110,6 +110,68 @@ query SearchCharacter($search: String!, $page: Int, $perPage: Int) {
 }
 `;
 
+const BROWSE_ANIME_QUERY = `
+query BrowseAnime($page: Int, $perPage: Int, $search: String, $genre_in: [String], $seasonYear: Int, $season: MediaSeason, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort], $isAdult: Boolean) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo {
+      total
+      currentPage
+      lastPage
+      hasNextPage
+    }
+    media(type: ANIME, search: $search, genre_in: $genre_in, seasonYear: $seasonYear, season: $season, format: $format, status: $status, sort: $sort, isAdult: $isAdult) {
+      id
+      title {
+        english
+        romaji
+        native
+      }
+      coverImage {
+        large
+      }
+      bannerImage
+      format
+      status
+      source
+      genres
+      tags {
+        name
+        rank
+        isMediaSpoiler
+      }
+      description(asHtml: false)
+      averageScore
+      meanScore
+      popularity
+      trending
+      favourites
+      episodes
+      duration
+      season
+      seasonYear
+      startDate { year month day }
+      studios {
+        nodes {
+          name
+          isAnimationStudio
+        }
+      }
+      trailer {
+        id
+        site
+        thumbnail
+      }
+      externalLinks {
+        site
+        url
+        type
+      }
+      siteUrl
+    }
+  }
+}
+`;
+
 async function anilistFetch(query, variables) {
   const response = await fetch(ANILIST_API_URL, {
     method: 'POST',
@@ -139,4 +201,16 @@ export async function searchAnime(search, page = 1, perPage = 10) {
 
 export async function searchCharacters(search, page = 1, perPage = 10) {
   return anilistFetch(SEARCH_CHARACTER_QUERY, { search, page, perPage });
+}
+
+export async function browseAnime(filters = {}, page = 1, perPage = 24) {
+  const variables = { page, perPage, isAdult: false };
+  if (filters.search) variables.search = filters.search;
+  if (filters.genres?.length) variables.genre_in = filters.genres;
+  if (filters.year) variables.seasonYear = filters.year;
+  if (filters.season) variables.season = filters.season;
+  if (filters.format) variables.format = filters.format;
+  if (filters.status) variables.status = filters.status;
+  variables.sort = filters.sort ? [filters.sort] : ['TRENDING_DESC'];
+  return anilistFetch(BROWSE_ANIME_QUERY, variables);
 }
