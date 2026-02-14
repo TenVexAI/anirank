@@ -82,7 +82,7 @@ function ExplorePage() {
   const [format, setFormat] = useState('');
   const [status, setStatus] = useState('');
   const [sort, setSort] = useState('TRENDING_DESC');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
 
   const [results, setResults] = useState([]);
   const [pageInfo, setPageInfo] = useState(null);
