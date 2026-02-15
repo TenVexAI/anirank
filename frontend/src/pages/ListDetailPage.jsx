@@ -491,9 +491,7 @@ function ListDetailPage() {
                         </div>
                       </>
                     )}
-                    {user && (
-                      <AddToListButton anime={{ anilist_id: entry.anilist_id, title_english: anime.title_english, title_romaji: anime.title_romaji, cover_image_url: anime.cover_image_url }} />
-                    )}
+                    <AddToListButton anime={{ anilist_id: entry.anilist_id, title_english: anime.title_english, title_romaji: anime.title_romaji, cover_image_url: anime.cover_image_url }} />
                     <button onClick={() => setExpandedId(isExpanded ? null : entry.id)}
                       className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
