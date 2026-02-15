@@ -166,6 +166,23 @@ query BrowseAnime($page: Int, $perPage: Int, $search: String, $genre_in: [String
         url
         type
       }
+      relations {
+        edges {
+          relationType
+          node {
+            id
+            title {
+              english
+              romaji
+            }
+            format
+            status
+            coverImage {
+              medium
+            }
+          }
+        }
+      }
       siteUrl
     }
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Search as SearchIcon, ChevronDown, ChevronUp, ExternalLink, Tv, Film, Clock, Grid, List, X } from 'lucide-react';
 import { browseAnime } from '../lib/anilist';
 import AddToListButton from '../components/anime/AddToListButton';
@@ -76,7 +77,8 @@ const YEARS = [{ value: '', label: 'Any' }, ...Array.from({ length: currentYear 
 })];
 
 function ExplorePage() {
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') || '');
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [year, setYear] = useState('');
   const [season, setSeason] = useState('');
@@ -95,6 +97,12 @@ function ExplorePage() {
 
   const debounceRef = useRef(null);
   const genreRef = useRef(null);
+
+  // Sync search state when navigating with ?q= param
+  useEffect(() => {
+    const q = searchParams.get('q') || '';
+    if (q && q !== search) setSearch(q);
+  }, [searchParams]);
 
   // Close genre dropdown on outside click
   useEffect(() => {
@@ -467,6 +475,32 @@ function ExplorePage() {
                               {g}
                             </button>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Relations */}
+                      {anime.relations?.edges?.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-[var(--color-text-primary)] mb-2">Relations</p>
+                          <div className="flex flex-wrap gap-2">
+                            {anime.relations.edges.map((edge, i) => (
+                              <Link key={i} to={`/explore?q=${encodeURIComponent(edge.node.title.english || edge.node.title.romaji || '')}`}
+                                className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-[var(--color-bg-primary)] hover:bg-[var(--color-border)] transition-colors group">
+                                {edge.node.coverImage?.medium && (
+                                  <img src={edge.node.coverImage.medium} alt="" className="w-8 h-11 object-cover rounded" />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-xs text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-cyan)] truncate max-w-[160px]">
+                                    {edge.node.title.english || edge.node.title.romaji || 'Unknown'}
+                                  </p>
+                                  <p className="text-[10px] text-[var(--color-text-secondary)]">
+                                    {(edge.relationType || '').replace(/_/g, ' ')}
+                                    {edge.node.format ? ` · ${edge.node.format}` : ''}
+                                  </p>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
                         </div>
                       )}
 
