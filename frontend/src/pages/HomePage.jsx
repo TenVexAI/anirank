@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Heart, TrendingUp, Clock, Search, ArrowRight, MessageSquare, Compass, Trophy, Bookmark } from 'lucide-react';
+import { Heart, TrendingUp, Clock, Search, ArrowRight, MessageSquare, Compass, Trophy, Bookmark, ChevronDown, ChevronsDown } from 'lucide-react';
 
 function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const [popularLists, setPopularLists] = useState([]);
   const [recentLists, setRecentLists] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [popularVisible, setPopularVisible] = useState(6);
 
   useEffect(() => {
     loadLists();
@@ -23,7 +24,7 @@ function HomePage() {
           .select('id, title, description, like_count, list_type, created_at, updated_at, profiles(display_name, username, avatar_url), comments(count)')
           .eq('is_public', true)
           .order('like_count', { ascending: false })
-          .limit(20),
+          .limit(200),
         supabase
           .from('lists')
           .select('id, title, description, like_count, list_type, updated_at, profiles(display_name, username, avatar_url), comments(count)')
@@ -46,8 +47,7 @@ function HomePage() {
           if ((b.like_count || 0) !== (a.like_count || 0)) return (b.like_count || 0) - (a.like_count || 0);
           if (b.comment_count !== a.comment_count) return b.comment_count - a.comment_count;
           return new Date(a.created_at) - new Date(b.created_at);
-        })
-        .slice(0, 6);
+        });
 
       setPopularLists(popular);
       setRecentLists(withCommentCount(recRes.data));
@@ -99,6 +99,9 @@ function HomePage() {
             title="Popular Lists"
             icon={<TrendingUp size={20} />}
             lists={popularLists}
+            visibleCount={popularVisible}
+            onShowMore={() => setPopularVisible((v) => v + 6)}
+            onShowAll={() => setPopularVisible(popularLists.length)}
             emptyText="No public lists yet. Be the first to create one!"
           />
 
@@ -115,7 +118,10 @@ function HomePage() {
   );
 }
 
-function ListSection({ title, icon, lists, emptyText }) {
+function ListSection({ title, icon, lists, emptyText, visibleCount, onShowMore, onShowAll }) {
+  const shown = visibleCount ? lists.slice(0, visibleCount) : lists;
+  const hasMore = visibleCount && visibleCount < lists.length;
+
   return (
     <section className="mb-10">
       <h2 className="text-xl text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
@@ -126,44 +132,58 @@ function ListSection({ title, icon, lists, emptyText }) {
           <p className="text-[var(--color-text-secondary)]">{emptyText}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lists.map((list) => (
-            <Link key={list.id} to={`/list/${list.id}`}
-              className="block p-4 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-accent-cyan)] transition-colors">
-              <h3 className="font-medium text-[var(--color-text-primary)] truncate mb-1 flex items-center gap-1.5">
-                {(list.list_type || 'rank') === 'watch'
-                  ? <Bookmark size={13} className="shrink-0 text-[var(--color-accent-purple)]" />
-                  : <Trophy size={13} className="shrink-0 text-[var(--color-accent-cyan)]" />}
-                {list.title}
-              </h3>
-              {list.description && (
-                <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-3">{list.description}</p>
-              )}
-              <div className="flex items-center justify-between">
-                {list.profiles && (
-                  <div className="flex items-center gap-2">
-                    {list.profiles.avatar_url ? (
-                      <img src={list.profiles.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-[var(--color-accent-purple)] flex items-center justify-center text-white text-[9px] font-medium">
-                        {(list.profiles.display_name || '?')[0].toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-xs text-[var(--color-text-secondary)]">{list.profiles.display_name}</span>
-                  </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {shown.map((list) => (
+              <Link key={list.id} to={`/list/${list.id}`}
+                className="block p-4 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-accent-cyan)] transition-colors">
+                <h3 className="font-medium text-[var(--color-text-primary)] truncate mb-1 flex items-center gap-1.5">
+                  {(list.list_type || 'rank') === 'watch'
+                    ? <Bookmark size={13} className="shrink-0 text-[var(--color-accent-purple)]" />
+                    : <Trophy size={13} className="shrink-0 text-[var(--color-accent-cyan)]" />}
+                  {list.title}
+                </h3>
+                {list.description && (
+                  <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-3">{list.description}</p>
                 )}
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
-                    <Heart size={10} /> {list.like_count || 0}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
-                    <MessageSquare size={10} /> {list.comment_count || 0}
-                  </span>
+                <div className="flex items-center justify-between">
+                  {list.profiles && (
+                    <div className="flex items-center gap-2">
+                      {list.profiles.avatar_url ? (
+                        <img src={list.profiles.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-[var(--color-accent-purple)] flex items-center justify-center text-white text-[9px] font-medium">
+                          {(list.profiles.display_name || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-xs text-[var(--color-text-secondary)]">{list.profiles.display_name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                      <Heart size={10} /> {list.like_count || 0}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
+                      <MessageSquare size={10} /> {list.comment_count || 0}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center gap-3 mt-4">
+              <button onClick={onShowMore}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-accent-cyan)] transition-colors">
+                <ChevronDown size={14} /> Show More
+              </button>
+              <button onClick={onShowAll}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-accent-cyan)] transition-colors">
+                <ChevronsDown size={14} /> Show All ({lists.length})
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { rankEntries, calculateOverallScore } from '../utils/scoring';
@@ -139,6 +139,7 @@ function CopyToListModal({ entries, listOwnerId, onClose }) {
 function ListDetailPage() {
   const { id } = useParams();
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
 
   const [list, setList] = useState(null);
   const [owner, setOwner] = useState(null);
@@ -309,13 +310,11 @@ function ListDetailPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
               {shareCopied ? <><Check size={14} /> Copied!</> : <><Share2 size={14} /> Share</>}
             </button>
-            {user && (
-              <button onClick={() => setShowCopyModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
-                title="Copy all anime to one of your lists">
-                <Copy size={14} /> Copy
-              </button>
-            )}
+            <button onClick={() => user ? setShowCopyModal(true) : navigate('/login')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              title="Copy all anime to one of your lists">
+              <Copy size={14} /> Copy
+            </button>
             {user && !isOwner && (
               <button onClick={toggleLike}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${

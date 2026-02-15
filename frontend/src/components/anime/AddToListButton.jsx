@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { Plus, Trophy, Bookmark, X } from 'lucide-react';
@@ -157,13 +158,22 @@ function AddToListModal({ anime, onClose }) {
 
 function AddToListButton({ anime, size = 'sm' }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  if (!user) return null;
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setOpen(true);
+  };
 
   return (
     <>
-      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
+      <button onClick={handleClick}
         className="p-1.5 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent-green)] hover:bg-[var(--color-accent-green)]/10 transition-colors"
         title="Add to list">
         <Plus size={14} />
