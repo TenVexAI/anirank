@@ -6,7 +6,7 @@ import { rankEntries, calculateOverallScore } from '../utils/scoring';
 import { Heart, Pencil, ExternalLink, Clock, Tv, Film, ChevronDown, ChevronUp, Scale, Share2, Check, Square, Trophy, Bookmark, Copy, Plus, X } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 import Comments from '../components/lists/Comments';
-import AddToListButton from '../components/anime/AddToListButton';
+import AddToListButton, { AddToListModal } from '../components/anime/AddToListButton';
 
 const FORMAT_LABELS = { TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', SPECIAL: 'Special', OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music' };
 const WEIGHT_MODES = { custom: 'Custom Order', creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights' };
@@ -151,6 +151,7 @@ function ListDetailPage() {
   const [weightMode, setWeightMode] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
+  const [addToListAnime, setAddToListAnime] = useState(null);
 
   useEffect(() => {
     loadList();
@@ -248,12 +249,30 @@ function ListDetailPage() {
   }
 
   const activeWeights = getActiveWeights();
-  const ranked = weightMode === 'custom'
-    ? [...entries]
-        .map((e) => ({ ...e, overallScore: calculateOverallScore({ technical: e.score_technical, storytelling: e.score_storytelling, enjoyment: e.score_enjoyment, xfactor: e.score_xfactor }, activeWeights) }))
-        .sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity))
-    : rankEntries(entries, activeWeights);
+  const isWatch = (list.list_type || 'rank') === 'watch';
+
+  const ranked = isWatch
+    ? (weightMode === 'custom'
+        ? [...entries].sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity))
+        : [...entries].sort((a, b) => {
+            const tA = (a.anime_cache?.title_english || a.anime_cache?.title_romaji || '').toLowerCase();
+            const tB = (b.anime_cache?.title_english || b.anime_cache?.title_romaji || '').toLowerCase();
+            return tA.localeCompare(tB);
+          })
+      ).map((e) => ({ ...e, overallScore: 0 }))
+    : weightMode === 'custom'
+      ? [...entries]
+          .map((e) => ({ ...e, overallScore: calculateOverallScore({ technical: e.score_technical, storytelling: e.score_storytelling, enjoyment: e.score_enjoyment, xfactor: e.score_xfactor }, activeWeights) }))
+          .sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity))
+      : rankEntries(entries, activeWeights);
   const isOwner = user && list.user_id === user.id;
+
+  const toggleWatched = async (entryId, currentWatched) => {
+    if (!isOwner) return;
+    const newWatched = !currentWatched;
+    setEntries((prev) => prev.map((e) => e.id === entryId ? { ...e, watched: newWatched } : e));
+    await supabase.from('list_entries').update({ watched: newWatched, updated_at: new Date().toISOString() }).eq('id', entryId);
+  };
 
   const handleShare = async () => {
     await navigator.clipboard.writeText(window.location.href);
@@ -361,9 +380,21 @@ function ListDetailPage() {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
             <Bookmark size={14} className="text-[var(--color-accent-purple)]" />
             <span>Watch List</span>
+            {list.rank_override_enabled && (
+              <div className="flex gap-1 ml-2">
+                <button onClick={() => setWeightMode('creator')}
+                  className={`px-2 py-0.5 rounded text-xs transition-colors ${weightMode !== 'custom' ? 'bg-[var(--color-accent-purple)]/20 text-[var(--color-accent-purple)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
+                  A→Z
+                </button>
+                <button onClick={() => setWeightMode('custom')}
+                  className={`px-2 py-0.5 rounded text-xs transition-colors ${weightMode === 'custom' ? 'bg-[var(--color-accent-yellow)]/20 text-[var(--color-accent-yellow)]' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
+                  Custom
+                </button>
+              </div>
+            )}
             <span className="ml-auto text-xs">{entries.filter((e) => e.watched).length}/{entries.length} watched</span>
           </div>
         )}
@@ -386,33 +417,34 @@ function ListDetailPage() {
 
             return (
               <div key={entry.id} className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-                <button onClick={() => setExpandedId(isExpanded ? null : entry.id)} className="w-full text-left">
-                  <div className="flex items-center gap-4 p-4">
-                    {/* Rank or Watch Checkbox */}
-                    {(list.list_type || 'rank') === 'watch' ? (
-                      <div className="shrink-0 w-8 flex justify-center">
-                        {entry.watched ? (
-                          <div className="w-6 h-6 rounded bg-[var(--color-accent-green)] flex items-center justify-center">
-                            <Check size={14} className="text-white" />
-                          </div>
-                        ) : (
-                          <Square size={22} className="text-[var(--color-text-secondary)]" />
-                        )}
-                      </div>
-                    ) : (
-                      <span className={`text-2xl font-bold w-8 text-center shrink-0 ${
-                        index === 0 ? 'text-[var(--color-accent-yellow)]' : index <= 2 ? 'text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'
-                      }`}>
-                        {index + 1}
-                      </span>
-                    )}
+                <div className="flex items-center gap-4 p-4">
+                  {/* Rank or Watch Checkbox */}
+                  {isWatch ? (
+                    <button onClick={(e) => { e.stopPropagation(); toggleWatched(entry.id, entry.watched); }}
+                      className={`shrink-0 w-8 flex justify-center ${isOwner ? 'cursor-pointer' : 'cursor-default'}`}
+                      title={isOwner ? (entry.watched ? 'Mark unwatched' : 'Mark watched') : ''}>
+                      {entry.watched ? (
+                        <div className="w-6 h-6 rounded bg-[var(--color-accent-green)] flex items-center justify-center">
+                          <Check size={14} className="text-white" />
+                        </div>
+                      ) : (
+                        <Square size={22} className="text-[var(--color-text-secondary)]" />
+                      )}
+                    </button>
+                  ) : (
+                    <span className={`text-2xl font-bold w-8 text-center shrink-0 ${
+                      index === 0 ? 'text-[var(--color-accent-yellow)]' : index <= 2 ? 'text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'
+                    }`}>
+                      {index + 1}
+                    </span>
+                  )}
 
-                    {/* Cover */}
-                    <img src={anime.cover_image_url} alt={title} className="w-14 h-20 object-cover rounded shrink-0" />
+                  {/* Cover */}
+                  <img src={anime.cover_image_url} alt={title} className="w-14 h-20 object-cover rounded shrink-0" />
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-medium text-[var(--color-text-primary)] truncate ${(list.list_type || 'rank') === 'watch' && entry.watched ? 'line-through opacity-60' : ''}`}>{title}</h3>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : entry.id)}>
+                    <h3 className={`font-medium text-[var(--color-text-primary)] truncate ${isWatch && entry.watched ? 'line-through opacity-60' : ''}`}>{title}</h3>
                       {anime.title_native && (
                         <p className="text-xs text-[var(--color-text-secondary)] truncate">
                           <span className={/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]/.test(anime.title_native) ? 'font-japanese' : ''}>
@@ -439,31 +471,36 @@ function ListDetailPage() {
                       </div>
                     </div>
 
-                    {/* Scores (rank lists only) */}
-                    <div className="flex items-center gap-4 shrink-0">
-                      {(list.list_type || 'rank') === 'rank' && (
-                        <>
-                          <div className="hidden sm:flex gap-2">
-                            {SCORE_CATEGORIES.map((cat) => {
-                              const Icon = cat.icon;
-                              return (
-                                <div key={cat.key} className="text-center w-8" title={cat.description}>
-                                  <Icon size={12} className="mx-auto mb-0.5 text-[var(--color-text-secondary)]" />
-                                  <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="text-center w-14">
-                            <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
-                            <p className="text-[9px] text-[var(--color-text-secondary)]">Overall</p>
-                          </div>
-                        </>
-                      )}
-                      {isExpanded ? <ChevronUp size={16} className="text-[var(--color-text-secondary)]" /> : <ChevronDown size={16} className="text-[var(--color-text-secondary)]" />}
-                    </div>
+                  {/* Scores (rank lists only) */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {!isWatch && (
+                      <>
+                        <div className="hidden sm:flex gap-2">
+                          {SCORE_CATEGORIES.map((cat) => {
+                            const Icon = cat.icon;
+                            return (
+                              <div key={cat.key} className="text-center w-8" title={cat.description}>
+                                <Icon size={12} className="mx-auto mb-0.5 text-[var(--color-text-secondary)]" />
+                                <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="text-center w-14">
+                          <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
+                          <p className="text-[9px] text-[var(--color-text-secondary)]">Overall</p>
+                        </div>
+                      </>
+                    )}
+                    {user && (
+                      <AddToListButton anime={{ anilist_id: entry.anilist_id, title_english: anime.title_english, title_romaji: anime.title_romaji, cover_image_url: anime.cover_image_url }} />
+                    )}
+                    <button onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                      className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {/* Expanded */}
                 {isExpanded && (
@@ -571,16 +608,13 @@ function ListDetailPage() {
                         </div>
                       )}
 
-                      {/* AniList link + Add to list */}
-                      <div className="flex items-center gap-3 mt-3">
-                        {anime.site_url && (
-                          <a href={anime.site_url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline">
-                            <ExternalLink size={10} /> View on AniList
-                          </a>
-                        )}
-                        <AddToListButton anime={{ anilist_id: entry.anilist_id, title_english: anime.title_english, title_romaji: anime.title_romaji, cover_image_url: anime.cover_image_url }} />
-                      </div>
+                      {/* AniList link */}
+                      {anime.site_url && (
+                        <a href={anime.site_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline mt-3">
+                          <ExternalLink size={10} /> View on AniList
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}

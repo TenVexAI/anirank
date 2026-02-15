@@ -1,42 +1,27 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import { Plus, Trophy, Bookmark, Check, X } from 'lucide-react';
+import { Plus, Trophy, Bookmark, X } from 'lucide-react';
 
-function AddToListButton({ anime, size = 'sm' }) {
+function AddToListModal({ anime, onClose }) {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
   const [myLists, setMyLists] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [result, setResult] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState('watch');
-  const ref = useRef(null);
 
   useEffect(() => {
-    if (!open || !user) return;
-    setLoading(true);
+    if (!user) return;
     supabase.from('lists').select('id, title, list_type').eq('user_id', user.id).order('updated_at', { ascending: false })
       .then(({ data }) => { setMyLists(data || []); setLoading(false); });
-  }, [open, user]);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  if (!user) return null;
+  }, [user]);
 
   const anilistId = anime.id || anime.anilist_id;
   const title = anime.title?.english || anime.title?.romaji || anime.title_english || anime.title_romaji;
-  const coverImage = anime.coverImage?.large || anime.cover_image_url;
 
   const upsertCache = async () => {
-    // Only upsert if we have full AniList data (not just cache data)
     if (!anime.id) return;
     const cacheData = {
       anilist_id: anime.id,
@@ -71,7 +56,6 @@ function AddToListButton({ anime, size = 'sm' }) {
 
   const addTo = async (listId) => {
     setResult(null);
-    // Check if already on list
     const { data: existing } = await supabase.from('list_entries').select('id').eq('list_id', listId).eq('anilist_id', anilistId).maybeSingle();
     if (existing) {
       setResult({ type: 'info', text: 'Already on that list' });
@@ -86,8 +70,7 @@ function AddToListButton({ anime, size = 'sm' }) {
     const { error } = await supabase.from('list_entries').insert(insertData);
     await supabase.from('lists').update({ updated_at: new Date().toISOString() }).eq('id', listId);
     if (error) setResult({ type: 'error', text: error.message });
-    else setResult({ type: 'success', text: 'Added!' });
-    setTimeout(() => { setResult(null); setOpen(false); }, 1500);
+    else { setResult({ type: 'success', text: 'Added!' }); setTimeout(() => onClose(), 1200); }
   };
 
   const createAndAdd = async () => {
@@ -102,81 +85,93 @@ function AddToListButton({ anime, size = 'sm' }) {
     await addTo(newList.id);
   };
 
-  const btnClass = size === 'sm'
-    ? 'p-1.5 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent-green)] hover:bg-[var(--color-accent-green)]/10 transition-colors'
-    : 'px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent-green)] transition-colors flex items-center gap-1.5';
-
   return (
-    <div className="relative" ref={ref}>
-      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }} className={btnClass} title="Add to list">
-        <Plus size={size === 'sm' ? 14 : 14} />
-        {size !== 'sm' && 'Add to List'}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl overflow-hidden"
-          onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
-            <span className="text-xs font-medium text-[var(--color-text-primary)]">Add to list</span>
-            <button onClick={() => setOpen(false)} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"><X size={14} /></button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+          <div>
+            <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Add to List</h3>
+            <p className="text-xs text-[var(--color-text-secondary)] truncate mt-0.5">{title}</p>
           </div>
-
-          {result && (
-            <div className={`mx-3 mt-2 px-2 py-1 rounded text-xs ${
-              result.type === 'error' ? 'bg-[var(--color-accent-red)]/10 text-[var(--color-accent-red)]'
-                : result.type === 'success' ? 'bg-[var(--color-accent-green)]/10 text-[var(--color-accent-green)]'
-                : 'bg-[var(--color-accent-cyan)]/10 text-[var(--color-accent-cyan)]'
-            }`}>{result.text}</div>
-          )}
-
-          <div className="max-h-48 overflow-y-auto p-1">
-            {loading ? (
-              <p className="text-xs text-[var(--color-text-secondary)] px-2 py-3 text-center">Loading...</p>
-            ) : myLists.length === 0 ? (
-              <p className="text-xs text-[var(--color-text-secondary)] px-2 py-3 text-center">No lists yet</p>
-            ) : (
-              myLists.map((l) => (
-                <button key={l.id} onClick={() => addTo(l.id)}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-[var(--color-bg-primary)] transition-colors flex items-center gap-2 text-xs">
-                  {(l.list_type || 'rank') === 'watch'
-                    ? <Bookmark size={12} className="shrink-0 text-[var(--color-accent-purple)]" />
-                    : <Trophy size={12} className="shrink-0 text-[var(--color-accent-cyan)]" />}
-                  <span className="text-[var(--color-text-primary)] truncate">{l.title}</span>
-                </button>
-              ))
-            )}
-          </div>
-
-          <div className="border-t border-[var(--color-border)] p-2">
-            {!showNew ? (
-              <button onClick={() => setShowNew(true)} className="text-xs text-[var(--color-accent-cyan)] hover:underline flex items-center gap-1">
-                <Plus size={12} /> New list
-              </button>
-            ) : (
-              <div className="space-y-1.5">
-                <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="List title..."
-                  className="w-full px-2 py-1 text-xs bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-cyan)] focus:outline-none" autoFocus />
-                <div className="flex gap-1.5">
-                  <button onClick={() => setNewType('rank')}
-                    className={`px-2 py-0.5 text-[10px] rounded flex items-center gap-0.5 ${newType === 'rank' ? 'bg-[var(--color-accent-cyan)]/20 text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'}`}>
-                    <Trophy size={9} /> Rank
-                  </button>
-                  <button onClick={() => setNewType('watch')}
-                    className={`px-2 py-0.5 text-[10px] rounded flex items-center gap-0.5 ${newType === 'watch' ? 'bg-[var(--color-accent-purple)]/20 text-[var(--color-accent-purple)]' : 'text-[var(--color-text-secondary)]'}`}>
-                    <Bookmark size={9} /> Watch
-                  </button>
-                  <button onClick={createAndAdd} disabled={!newTitle.trim()}
-                    className="ml-auto px-2 py-0.5 text-[10px] bg-[var(--color-accent-green)] text-[var(--color-bg-primary)] rounded font-medium disabled:opacity-50">
-                    Create
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <button onClick={onClose} className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
+            <X size={18} />
+          </button>
         </div>
-      )}
+
+        {result && (
+          <div className={`mx-4 mt-3 px-3 py-2 rounded text-sm ${
+            result.type === 'error' ? 'bg-[var(--color-accent-red)]/10 text-[var(--color-accent-red)]'
+              : result.type === 'success' ? 'bg-[var(--color-accent-green)]/10 text-[var(--color-accent-green)]'
+              : 'bg-[var(--color-accent-cyan)]/10 text-[var(--color-accent-cyan)]'
+          }`}>{result.text}</div>
+        )}
+
+        <div className="max-h-64 overflow-y-auto p-2">
+          {loading ? (
+            <p className="text-sm text-[var(--color-text-secondary)] px-2 py-6 text-center">Loading...</p>
+          ) : myLists.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-secondary)] px-2 py-6 text-center">No lists yet. Create one below!</p>
+          ) : (
+            myLists.map((l) => (
+              <button key={l.id} onClick={() => addTo(l.id)}
+                className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--color-bg-primary)] transition-colors flex items-center gap-2.5 text-sm">
+                {(l.list_type || 'rank') === 'watch'
+                  ? <Bookmark size={14} className="shrink-0 text-[var(--color-accent-purple)]" />
+                  : <Trophy size={14} className="shrink-0 text-[var(--color-accent-cyan)]" />}
+                <span className="text-[var(--color-text-primary)] truncate">{l.title}</span>
+              </button>
+            ))
+          )}
+        </div>
+
+        <div className="border-t border-[var(--color-border)] p-4">
+          {!showNew ? (
+            <button onClick={() => setShowNew(true)} className="text-sm text-[var(--color-accent-cyan)] hover:underline flex items-center gap-1.5">
+              <Plus size={14} /> Create new list
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="List title..."
+                className="w-full px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-cyan)] focus:outline-none" autoFocus />
+              <div className="flex gap-2">
+                <button onClick={() => setNewType('rank')}
+                  className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${newType === 'rank' ? 'bg-[var(--color-accent-cyan)]/20 text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'}`}>
+                  <Trophy size={11} /> Rank
+                </button>
+                <button onClick={() => setNewType('watch')}
+                  className={`px-3 py-1 text-xs rounded flex items-center gap-1 ${newType === 'watch' ? 'bg-[var(--color-accent-purple)]/20 text-[var(--color-accent-purple)]' : 'text-[var(--color-text-secondary)]'}`}>
+                  <Bookmark size={11} /> Watch
+                </button>
+                <button onClick={createAndAdd} disabled={!newTitle.trim()}
+                  className="ml-auto px-3 py-1 text-xs bg-[var(--color-accent-green)] text-[var(--color-bg-primary)] rounded font-medium disabled:opacity-50">
+                  Create & Add
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
+function AddToListButton({ anime, size = 'sm' }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  if (!user) return null;
+
+  return (
+    <>
+      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
+        className="p-1.5 rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent-green)] hover:bg-[var(--color-accent-green)]/10 transition-colors"
+        title="Add to list">
+        <Plus size={14} />
+      </button>
+      {open && <AddToListModal anime={anime} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+export { AddToListModal };
 export default AddToListButton;

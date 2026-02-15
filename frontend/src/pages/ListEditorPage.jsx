@@ -100,6 +100,28 @@ function ListEditorPage() {
   const frozenOrderRef = useRef(null);
 
   const rankedEntries = useMemo(() => {
+    const isWatch = (list?.list_type || 'rank') === 'watch';
+
+    // Watch lists: ABC order by english title (or manual override)
+    if (isWatch) {
+      if (rankOverride) {
+        const manual = [...entries]
+          .map((e) => ({ ...e, overallScore: 0 }))
+          .sort((a, b) => (a.manual_position ?? Infinity) - (b.manual_position ?? Infinity));
+        frozenOrderRef.current = manual.map((e) => e.id);
+        return manual;
+      }
+      const abc = [...entries]
+        .map((e) => ({ ...e, overallScore: 0 }))
+        .sort((a, b) => {
+          const tA = (a.anime_cache?.title_english || a.anime_cache?.title_romaji || '').toLowerCase();
+          const tB = (b.anime_cache?.title_english || b.anime_cache?.title_romaji || '').toLowerCase();
+          return tA.localeCompare(tB);
+        });
+      frozenOrderRef.current = abc.map((e) => e.id);
+      return abc;
+    }
+
     const sorted = rankEntries(entries, weights);
 
     // Override rank mode: sort by manual_position
@@ -126,7 +148,7 @@ function ListEditorPage() {
     // When collapsed, sort normally and snapshot the order
     frozenOrderRef.current = sorted.map((e) => e.id);
     return sorted;
-  }, [entries, weights, expandedEntry, rankOverride]);
+  }, [entries, weights, expandedEntry, rankOverride, list]);
 
   // Anime search
   const performSearch = useCallback(async (q) => {
@@ -256,14 +278,21 @@ function ListEditorPage() {
     await supabase.from('lists').update({ updated_at: new Date().toISOString() }).eq('id', id);
   };
 
-  // Override Rank: toggle on/off
+  // Override order: toggle on/off (works for both rank and watch lists)
   const toggleRankOverride = async () => {
     const enabling = !rankOverride;
+    const isWatch = (list?.list_type || 'rank') === 'watch';
     setExpandedEntry(null);
 
     if (enabling) {
-      // Assign manual_position based on current weighted order
-      const sorted = rankEntries(entries, weights);
+      // Assign manual_position based on current order (ABC for watch, ranked for rank)
+      const sorted = isWatch
+        ? [...entries].sort((a, b) => {
+            const tA = (a.anime_cache?.title_english || a.anime_cache?.title_romaji || '').toLowerCase();
+            const tB = (b.anime_cache?.title_english || b.anime_cache?.title_romaji || '').toLowerCase();
+            return tA.localeCompare(tB);
+          })
+        : rankEntries(entries, weights);
       const updates = sorted.map((e, i) => ({ ...e, manual_position: i }));
       setEntries(updates);
       // Persist positions to DB
@@ -408,18 +437,16 @@ function ListEditorPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(list.list_type || 'rank') === 'rank' && (
-            <button
-              onClick={toggleRankOverride}
-              className={`px-4 py-2 text-sm rounded font-medium flex items-center gap-1.5 transition-colors ${
-                rankOverride
-                  ? 'bg-[var(--color-accent-yellow)]/20 border border-[var(--color-accent-yellow)]/50 text-[var(--color-accent-yellow)]'
-                  : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-              }`}
-            >
-              <GripVertical size={16} /> {rankOverride ? 'Override: ON' : 'Override Rank'}
-            </button>
-          )}
+          <button
+            onClick={toggleRankOverride}
+            className={`px-4 py-2 text-sm rounded font-medium flex items-center gap-1.5 transition-colors ${
+              rankOverride
+                ? 'bg-[var(--color-accent-yellow)]/20 border border-[var(--color-accent-yellow)]/50 text-[var(--color-accent-yellow)]'
+                : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+            }`}
+          >
+            <GripVertical size={16} /> {rankOverride ? 'Override: ON' : (list.list_type || 'rank') === 'watch' ? 'Override ABC' : 'Override Rank'}
+          </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="px-4 py-2 text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
