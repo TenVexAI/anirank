@@ -3,12 +3,138 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { rankEntries, calculateOverallScore } from '../utils/scoring';
-import { Heart, Pencil, ExternalLink, Clock, Tv, Film, ChevronDown, ChevronUp, Scale, Share2, Check } from 'lucide-react';
+import { Heart, Pencil, ExternalLink, Clock, Tv, Film, ChevronDown, ChevronUp, Scale, Share2, Check, Square, Trophy, Bookmark, Copy, Plus, X } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 import Comments from '../components/lists/Comments';
+import AddToListButton from '../components/anime/AddToListButton';
 
 const FORMAT_LABELS = { TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', SPECIAL: 'Special', OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music' };
 const WEIGHT_MODES = { custom: 'Custom Order', creator: "Creator's Weights", user: 'My Weights', even: 'Even Weights' };
+
+function CopyToListModal({ entries, listOwnerId, onClose }) {
+  const { user } = useAuth();
+  const [myLists, setMyLists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copying, setCopying] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newType, setNewType] = useState('rank');
+  const [showNew, setShowNew] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('lists').select('id, title, list_type').eq('user_id', user.id).order('updated_at', { ascending: false })
+      .then(({ data }) => { setMyLists(data || []); setLoading(false); });
+  }, [user]);
+
+  const isOwnList = user?.id === listOwnerId;
+
+  const copyTo = async (targetListId) => {
+    setCopying(true);
+    const { data: existingEntries } = await supabase.from('list_entries').select('anilist_id').eq('list_id', targetListId);
+    const existingIds = new Set((existingEntries || []).map((e) => e.anilist_id));
+    const toCopy = entries.filter((e) => !existingIds.has(e.anilist_id));
+
+    if (toCopy.length === 0) {
+      setResult({ type: 'info', text: 'All anime are already on that list.' });
+      setCopying(false);
+      return;
+    }
+
+    const inserts = toCopy.map((e) => {
+      const base = { list_id: targetListId, anilist_id: e.anilist_id };
+      if (isOwnList) {
+        base.notes = e.notes || null;
+        base.score_technical = e.score_technical;
+        base.score_storytelling = e.score_storytelling;
+        base.score_enjoyment = e.score_enjoyment;
+        base.score_xfactor = e.score_xfactor;
+        base.watched = e.watched;
+      }
+      return base;
+    });
+
+    const { error } = await supabase.from('list_entries').insert(inserts);
+    await supabase.from('lists').update({ updated_at: new Date().toISOString() }).eq('id', targetListId);
+    if (error) setResult({ type: 'error', text: error.message });
+    else setResult({ type: 'success', text: `Added ${toCopy.length} anime!` });
+    setCopying(false);
+  };
+
+  const createAndCopy = async () => {
+    if (!newTitle.trim()) return;
+    setCopying(true);
+    const { data: newList, error: createErr } = await supabase.from('lists')
+      .insert({ user_id: user.id, title: newTitle.trim(), list_type: newType, is_public: false })
+      .select('id').single();
+    if (createErr) { setResult({ type: 'error', text: createErr.message }); setCopying(false); return; }
+    await copyTo(newList.id);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+          <h3 className="text-lg text-[var(--color-text-primary)] flex items-center gap-2"><Copy size={18} /> Copy Anime To List</h3>
+          <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"><X size={18} /></button>
+        </div>
+        <div className="p-4 space-y-3">
+          {result && (
+            <div className={`px-3 py-2 rounded text-sm ${
+              result.type === 'error' ? 'bg-[var(--color-accent-red)]/10 text-[var(--color-accent-red)]'
+                : result.type === 'success' ? 'bg-[var(--color-accent-green)]/10 text-[var(--color-accent-green)]'
+                : 'bg-[var(--color-accent-cyan)]/10 text-[var(--color-accent-cyan)]'
+            }`}>{result.text}</div>
+          )}
+          {loading ? (
+            <p className="text-sm text-[var(--color-text-secondary)]">Loading your lists...</p>
+          ) : (
+            <>
+              {myLists.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs text-[var(--color-text-secondary)] mb-1">Your lists:</p>
+                  {myLists.map((l) => (
+                    <button key={l.id} onClick={() => copyTo(l.id)} disabled={copying}
+                      className="w-full text-left px-3 py-2 rounded hover:bg-[var(--color-bg-primary)] transition-colors flex items-center gap-2 disabled:opacity-50">
+                      {(l.list_type || 'rank') === 'watch' ? <Bookmark size={14} className="text-[var(--color-accent-purple)]" /> : <Trophy size={14} className="text-[var(--color-accent-cyan)]" />}
+                      <span className="text-sm text-[var(--color-text-primary)] truncate">{l.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-[var(--color-border)] pt-3">
+                {!showNew ? (
+                  <button onClick={() => setShowNew(true)} className="text-sm text-[var(--color-accent-cyan)] hover:underline flex items-center gap-1">
+                    <Plus size={14} /> Create new list & copy
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="New list title..."
+                      className="w-full px-3 py-2 text-sm bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)] focus:border-[var(--color-accent-cyan)] focus:outline-none" autoFocus />
+                    <div className="flex gap-2">
+                      <button onClick={() => setNewType('rank')}
+                        className={`px-2.5 py-1 text-xs rounded flex items-center gap-1 ${newType === 'rank' ? 'bg-[var(--color-accent-cyan)]/20 text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'}`}>
+                        <Trophy size={10} /> Rank
+                      </button>
+                      <button onClick={() => setNewType('watch')}
+                        className={`px-2.5 py-1 text-xs rounded flex items-center gap-1 ${newType === 'watch' ? 'bg-[var(--color-accent-purple)]/20 text-[var(--color-accent-purple)]' : 'text-[var(--color-text-secondary)]'}`}>
+                        <Bookmark size={10} /> Watch
+                      </button>
+                    </div>
+                    <button onClick={createAndCopy} disabled={copying || !newTitle.trim()}
+                      className="px-4 py-2 text-sm bg-[var(--color-accent-green)] text-[var(--color-bg-primary)] rounded font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5">
+                      <Plus size={14} /> {copying ? 'Copying...' : 'Create & Copy'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ListDetailPage() {
   const { id } = useParams();
@@ -24,6 +150,7 @@ function ListDetailPage() {
   const [expandedId, setExpandedId] = useState(null);
   const [weightMode, setWeightMode] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
 
   useEffect(() => {
     loadList();
@@ -163,6 +290,13 @@ function ListDetailPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
               {shareCopied ? <><Check size={14} /> Copied!</> : <><Share2 size={14} /> Share</>}
             </button>
+            {user && (
+              <button onClick={() => setShowCopyModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                title="Copy all anime to one of your lists">
+                <Copy size={14} /> Copy
+              </button>
+            )}
             {user && !isOwner && (
               <button onClick={toggleLike}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors ${
@@ -195,36 +329,44 @@ function ListDetailPage() {
           </Link>
         )}
 
-        {/* Weight Mode Toggle + Active Weights */}
-        <div className="flex flex-wrap items-center gap-4 p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)]">
-          <div className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
-            <Scale size={14} />
-            <span>Weights:</span>
+        {/* Weight Mode Toggle + Active Weights (rank lists only) */}
+        {(list.list_type || 'rank') === 'rank' ? (
+          <div className="flex flex-wrap items-center gap-4 p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)]">
+            <div className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
+              <Scale size={14} />
+              <span>Weights:</span>
+            </div>
+            <div className="flex gap-1">
+              {Object.entries(WEIGHT_MODES).map(([key, label]) => {
+                if (key === 'user' && !user) return null;
+                if (key === 'custom' && !list.rank_override_enabled) return null;
+                return (
+                  <button key={key} onClick={() => setWeightMode(key)}
+                    className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                      weightMode === key
+                        ? 'bg-[var(--color-accent-cyan)] text-[var(--color-bg-primary)]'
+                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-3 ml-auto text-xs">
+              {weightLabels.map((w) => (
+                <span key={w.key} className="text-[var(--color-text-secondary)]">
+                  {w.label} <span className="text-[var(--color-accent-cyan)]">×{activeWeights[w.key]}</span>
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1">
-            {Object.entries(WEIGHT_MODES).map(([key, label]) => {
-              if (key === 'user' && !user) return null;
-              if (key === 'custom' && !list.rank_override_enabled) return null;
-              return (
-                <button key={key} onClick={() => setWeightMode(key)}
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    weightMode === key
-                      ? 'bg-[var(--color-accent-cyan)] text-[var(--color-bg-primary)]'
-                      : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                  }`}>
-                  {label}
-                </button>
-              );
-            })}
+        ) : (
+          <div className="flex items-center gap-2 p-3 bg-[var(--color-bg-secondary)] rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-secondary)]">
+            <Bookmark size={14} className="text-[var(--color-accent-purple)]" />
+            <span>Watch List</span>
+            <span className="ml-auto text-xs">{entries.filter((e) => e.watched).length}/{entries.length} watched</span>
           </div>
-          <div className="flex gap-3 ml-auto text-xs">
-            {weightLabels.map((w) => (
-              <span key={w.key} className="text-[var(--color-text-secondary)]">
-                {w.label} <span className="text-[var(--color-accent-cyan)]">×{activeWeights[w.key]}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Entries */}
@@ -246,19 +388,31 @@ function ListDetailPage() {
               <div key={entry.id} className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden">
                 <button onClick={() => setExpandedId(isExpanded ? null : entry.id)} className="w-full text-left">
                   <div className="flex items-center gap-4 p-4">
-                    {/* Rank */}
-                    <span className={`text-2xl font-bold w-8 text-center shrink-0 ${
-                      index === 0 ? 'text-[var(--color-accent-yellow)]' : index <= 2 ? 'text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'
-                    }`}>
-                      {index + 1}
-                    </span>
+                    {/* Rank or Watch Checkbox */}
+                    {(list.list_type || 'rank') === 'watch' ? (
+                      <div className="shrink-0 w-8 flex justify-center">
+                        {entry.watched ? (
+                          <div className="w-6 h-6 rounded bg-[var(--color-accent-green)] flex items-center justify-center">
+                            <Check size={14} className="text-white" />
+                          </div>
+                        ) : (
+                          <Square size={22} className="text-[var(--color-text-secondary)]" />
+                        )}
+                      </div>
+                    ) : (
+                      <span className={`text-2xl font-bold w-8 text-center shrink-0 ${
+                        index === 0 ? 'text-[var(--color-accent-yellow)]' : index <= 2 ? 'text-[var(--color-accent-cyan)]' : 'text-[var(--color-text-secondary)]'
+                      }`}>
+                        {index + 1}
+                      </span>
+                    )}
 
                     {/* Cover */}
                     <img src={anime.cover_image_url} alt={title} className="w-14 h-20 object-cover rounded shrink-0" />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-[var(--color-text-primary)] truncate">{title}</h3>
+                      <h3 className={`font-medium text-[var(--color-text-primary)] truncate ${(list.list_type || 'rank') === 'watch' && entry.watched ? 'line-through opacity-60' : ''}`}>{title}</h3>
                       {anime.title_native && (
                         <p className="text-xs text-[var(--color-text-secondary)] truncate">
                           <span className={/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]/.test(anime.title_native) ? 'font-japanese' : ''}>
@@ -285,23 +439,27 @@ function ListDetailPage() {
                       </div>
                     </div>
 
-                    {/* Scores */}
+                    {/* Scores (rank lists only) */}
                     <div className="flex items-center gap-4 shrink-0">
-                      <div className="hidden sm:flex gap-2">
-                        {SCORE_CATEGORIES.map((cat) => {
-                          const Icon = cat.icon;
-                          return (
-                            <div key={cat.key} className="text-center w-8" title={cat.description}>
-                              <Icon size={12} className="mx-auto mb-0.5 text-[var(--color-text-secondary)]" />
-                              <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="text-center w-14">
-                        <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
-                        <p className="text-[9px] text-[var(--color-text-secondary)]">Overall</p>
-                      </div>
+                      {(list.list_type || 'rank') === 'rank' && (
+                        <>
+                          <div className="hidden sm:flex gap-2">
+                            {SCORE_CATEGORIES.map((cat) => {
+                              const Icon = cat.icon;
+                              return (
+                                <div key={cat.key} className="text-center w-8" title={cat.description}>
+                                  <Icon size={12} className="mx-auto mb-0.5 text-[var(--color-text-secondary)]" />
+                                  <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="text-center w-14">
+                            <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
+                            <p className="text-[9px] text-[var(--color-text-secondary)]">Overall</p>
+                          </div>
+                        </>
+                      )}
                       {isExpanded ? <ChevronUp size={16} className="text-[var(--color-text-secondary)]" /> : <ChevronDown size={16} className="text-[var(--color-text-secondary)]" />}
                     </div>
                   </div>
@@ -318,21 +476,23 @@ function ListDetailPage() {
                     )}
 
                     <div className="px-4 pb-4">
-                      {/* Category scores on mobile */}
-                      <div className="sm:hidden flex gap-3 mt-3 mb-3">
-                        {SCORE_CATEGORIES.map((cat) => {
-                          const Icon = cat.icon;
-                          return (
-                            <div key={cat.key} className="text-center flex-1" title={cat.description}>
-                              <div className="flex items-center justify-center gap-1 mb-0.5">
-                                <Icon size={10} className="text-[var(--color-text-secondary)]" />
-                                <p className="text-[10px] text-[var(--color-text-secondary)]">{cat.label}</p>
+                      {/* Category scores on mobile (rank lists only) */}
+                      {(list.list_type || 'rank') === 'rank' && (
+                        <div className="sm:hidden flex gap-3 mt-3 mb-3">
+                          {SCORE_CATEGORIES.map((cat) => {
+                            const Icon = cat.icon;
+                            return (
+                              <div key={cat.key} className="text-center flex-1" title={cat.description}>
+                                <div className="flex items-center justify-center gap-1 mb-0.5">
+                                  <Icon size={10} className="text-[var(--color-text-secondary)]" />
+                                  <p className="text-[10px] text-[var(--color-text-secondary)]">{cat.label}</p>
+                                </div>
+                                <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
                               </div>
-                              <p className="text-sm text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</p>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* AniList Average Score */}
                       {anime.average_score != null && (
@@ -411,13 +571,16 @@ function ListDetailPage() {
                         </div>
                       )}
 
-                      {/* AniList link */}
-                      {anime.site_url && (
-                        <a href={anime.site_url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline mt-3">
-                          <ExternalLink size={10} /> View on AniList
-                        </a>
-                      )}
+                      {/* AniList link + Add to list */}
+                      <div className="flex items-center gap-3 mt-3">
+                        {anime.site_url && (
+                          <a href={anime.site_url} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline">
+                            <ExternalLink size={10} /> View on AniList
+                          </a>
+                        )}
+                        <AddToListButton anime={{ anilist_id: entry.anilist_id, title_english: anime.title_english, title_romaji: anime.title_romaji, cover_image_url: anime.cover_image_url }} />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -429,6 +592,11 @@ function ListDetailPage() {
 
       {/* Comments */}
       <Comments listId={id} />
+
+      {/* Copy Modal */}
+      {showCopyModal && (
+        <CopyToListModal entries={entries} listOwnerId={list.user_id} onClose={() => setShowCopyModal(false)} />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Search as SearchIcon, ExternalLink, Tv, Film, Clock, Heart, List, ChevronDown, ChevronUp } from 'lucide-react';
 import { searchAnime } from '../lib/anilist';
 import { supabase } from '../lib/supabase';
+import AddToListButton from '../components/anime/AddToListButton';
 
 const FORMAT_LABELS = {
   TV: 'TV',
@@ -408,12 +409,15 @@ function SearchPage() {
                         )}
 
                         {/* AniList link */}
-                        {anime.siteUrl && (
-                          <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline mt-3">
-                            <ExternalLink size={10} /> View on AniList
-                          </a>
-                        )}
+                        <div className="flex items-center gap-3 mt-3">
+                          {anime.siteUrl && (
+                            <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline">
+                              <ExternalLink size={10} /> View on AniList
+                            </a>
+                          )}
+                          <AddToListButton anime={anime} />
+                        </div>
                       </div>
                     </div>
                   )}

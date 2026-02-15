@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, Trophy, Bookmark } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 
 function CreateListPage() {
@@ -19,6 +19,7 @@ function CreateListPage() {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [listType, setListType] = useState('rank');
   const [isPublic, setIsPublic] = useState(false);
   const [weightTechnical, setWeightTechnical] = useState(1);
   const [weightStorytelling, setWeightStorytelling] = useState(1);
@@ -43,6 +44,7 @@ function CreateListPage() {
         user_id: user.id,
         title: title.trim(),
         description: description.trim(),
+        list_type: listType,
         is_public: isPublic,
         weight_technical: weightTechnical,
         weight_storytelling: weightStorytelling,
@@ -106,6 +108,37 @@ function CreateListPage() {
         </div>
 
         <div>
+          <label className="block text-sm text-[var(--color-text-secondary)] mb-1">List Type</label>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setListType('rank')}
+              className={`px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 ${
+                listType === 'rank'
+                  ? 'bg-[var(--color-accent-cyan)]/20 border border-[var(--color-accent-cyan)]/50 text-[var(--color-accent-cyan)]'
+                  : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              <Trophy size={14} /> Rank List
+            </button>
+            <button
+              type="button"
+              onClick={() => setListType('watch')}
+              className={`px-4 py-2 rounded text-sm transition-colors flex items-center gap-2 ${
+                listType === 'watch'
+                  ? 'bg-[var(--color-accent-purple)]/20 border border-[var(--color-accent-purple)]/50 text-[var(--color-accent-purple)]'
+                  : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              <Bookmark size={14} /> Watch List
+            </button>
+          </div>
+          <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+            {listType === 'rank' ? 'Score and rank anime with weighted categories.' : 'Track anime you want to watch or have watched.'}
+          </p>
+        </div>
+
+        <div>
           <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Visibility</label>
           <div className="flex gap-3">
             <button
@@ -133,8 +166,8 @@ function CreateListPage() {
           </div>
         </div>
 
-        {/* Category Weights */}
-        <div>
+        {/* Category Weights (rank lists only) */}
+        {listType === 'rank' && <div>
           <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Category Weights</label>
           <p className="text-xs text-[var(--color-text-secondary)] mb-3">
             Adjust how much each category contributes to the overall score. Default is equal weight.
@@ -174,7 +207,7 @@ function CreateListPage() {
           >
             Use My Preferred Weights
           </button>
-        </div>
+        </div>}
 
         <button
           type="submit"

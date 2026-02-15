@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
-import { Heart, TrendingUp, Clock, Search, ArrowRight, MessageSquare, Compass } from 'lucide-react';
+import { Heart, TrendingUp, Clock, Search, ArrowRight, MessageSquare, Compass, Trophy, Bookmark } from 'lucide-react';
 
 function HomePage() {
   const { user, loading: authLoading } = useAuth();
@@ -20,13 +20,13 @@ function HomePage() {
       const [popRes, recRes] = await Promise.all([
         supabase
           .from('lists')
-          .select('id, title, description, like_count, created_at, updated_at, profiles(display_name, username, avatar_url), comments(count)')
+          .select('id, title, description, like_count, list_type, created_at, updated_at, profiles(display_name, username, avatar_url), comments(count)')
           .eq('is_public', true)
           .order('like_count', { ascending: false })
           .limit(20),
         supabase
           .from('lists')
-          .select('id, title, description, like_count, updated_at, profiles(display_name, username, avatar_url), comments(count)')
+          .select('id, title, description, like_count, list_type, updated_at, profiles(display_name, username, avatar_url), comments(count)')
           .eq('is_public', true)
           .order('updated_at', { ascending: false })
           .limit(6),
@@ -130,7 +130,12 @@ function ListSection({ title, icon, lists, emptyText }) {
           {lists.map((list) => (
             <Link key={list.id} to={`/list/${list.id}`}
               className="block p-4 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-accent-cyan)] transition-colors">
-              <h3 className="font-medium text-[var(--color-text-primary)] truncate mb-1">{list.title}</h3>
+              <h3 className="font-medium text-[var(--color-text-primary)] truncate mb-1 flex items-center gap-1.5">
+                {(list.list_type || 'rank') === 'watch'
+                  ? <Bookmark size={13} className="shrink-0 text-[var(--color-accent-purple)]" />
+                  : <Trophy size={13} className="shrink-0 text-[var(--color-accent-cyan)]" />}
+                {list.title}
+              </h3>
               {list.description && (
                 <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-3">{list.description}</p>
               )}

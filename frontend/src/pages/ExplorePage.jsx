@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search as SearchIcon, ChevronDown, ChevronUp, ExternalLink, Tv, Film, Clock, Grid, List, X } from 'lucide-react';
 import { browseAnime } from '../lib/anilist';
+import AddToListButton from '../components/anime/AddToListButton';
 
 const GENRES = [
   'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror',
@@ -485,12 +486,15 @@ function ExplorePage() {
                         </div>
                       )}
 
-                      {anime.siteUrl && (
-                        <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline mt-3">
-                          <ExternalLink size={10} /> View on AniList
-                        </a>
-                      )}
+                      <div className="flex items-center gap-3 mt-3">
+                        {anime.siteUrl && (
+                          <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline">
+                            <ExternalLink size={10} /> View on AniList
+                          </a>
+                        )}
+                        <AddToListButton anime={anime} />
+                      </div>
                     </div>
                   </div>
                 )}

@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { searchAnime } from '../lib/anilist';
 import { rankEntries } from '../utils/scoring';
-import { ArrowLeft, Search, Plus, X, Trash2, ChevronDown, ChevronUp, Save, Eye, EyeOff, ExternalLink, GripVertical } from 'lucide-react';
+import { ArrowLeft, Search, Plus, X, Trash2, ChevronDown, ChevronUp, Save, Eye, EyeOff, ExternalLink, GripVertical, Trophy, Bookmark, Check, Square } from 'lucide-react';
 import { SCORE_CATEGORIES } from '../utils/categories';
 
 function ListEditorPage() {
@@ -39,6 +39,7 @@ function ListEditorPage() {
   const [settingsTitle, setSettingsTitle] = useState('');
   const [settingsDesc, setSettingsDesc] = useState('');
   const [settingsPublic, setSettingsPublic] = useState(false);
+  const [settingsListType, setSettingsListType] = useState('rank');
   const [settingsWeights, setSettingsWeights] = useState({ technical: 1, storytelling: 1, enjoyment: 1, xfactor: 1 });
 
   useEffect(() => {
@@ -72,6 +73,7 @@ function ListEditorPage() {
     setSettingsTitle(listData.title);
     setSettingsDesc(listData.description || '');
     setSettingsPublic(listData.is_public);
+    setSettingsListType(listData.list_type || 'rank');
     setSettingsWeights({
       technical: Number(listData.weight_technical),
       storytelling: Number(listData.weight_storytelling),
@@ -242,6 +244,12 @@ function ListEditorPage() {
       .eq('id', entryId);
   };
 
+  const toggleWatched = async (entryId, currentWatched) => {
+    const newWatched = !currentWatched;
+    setEntries((prev) => prev.map((e) => e.id === entryId ? { ...e, watched: newWatched } : e));
+    await supabase.from('list_entries').update({ watched: newWatched, updated_at: new Date().toISOString() }).eq('id', entryId);
+  };
+
   const removeEntry = async (entryId) => {
     setEntries((prev) => prev.filter((e) => e.id !== entryId));
     await supabase.from('list_entries').delete().eq('id', entryId);
@@ -320,6 +328,7 @@ function ListEditorPage() {
         title: settingsTitle.trim(),
         description: settingsDesc.trim(),
         is_public: settingsPublic,
+        list_type: settingsListType,
         weight_technical: settingsWeights.technical,
         weight_storytelling: settingsWeights.storytelling,
         weight_enjoyment: settingsWeights.enjoyment,
@@ -336,6 +345,7 @@ function ListEditorPage() {
         title: settingsTitle.trim(),
         description: settingsDesc.trim(),
         is_public: settingsPublic,
+        list_type: settingsListType,
         weight_technical: settingsWeights.technical,
         weight_storytelling: settingsWeights.storytelling,
         weight_enjoyment: settingsWeights.enjoyment,
@@ -398,16 +408,18 @@ function ListEditorPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={toggleRankOverride}
-            className={`px-4 py-2 text-sm rounded font-medium flex items-center gap-1.5 transition-colors ${
-              rankOverride
-                ? 'bg-[var(--color-accent-yellow)]/20 border border-[var(--color-accent-yellow)]/50 text-[var(--color-accent-yellow)]'
-                : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-            }`}
-          >
-            <GripVertical size={16} /> {rankOverride ? 'Override: ON' : 'Override Rank'}
-          </button>
+          {(list.list_type || 'rank') === 'rank' && (
+            <button
+              onClick={toggleRankOverride}
+              className={`px-4 py-2 text-sm rounded font-medium flex items-center gap-1.5 transition-colors ${
+                rankOverride
+                  ? 'bg-[var(--color-accent-yellow)]/20 border border-[var(--color-accent-yellow)]/50 text-[var(--color-accent-yellow)]'
+                  : 'bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              <GripVertical size={16} /> {rankOverride ? 'Override: ON' : 'Override Rank'}
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="px-4 py-2 text-sm bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -448,6 +460,19 @@ function ListEditorPage() {
             <textarea value={settingsDesc} onChange={(e) => setSettingsDesc(e.target.value)} rows={2}
               className="w-full px-3 py-2 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] focus:border-[var(--color-accent-cyan)] focus:outline-none resize-none" maxLength={500} />
           </div>
+          <div>
+            <label className="block text-sm text-[var(--color-text-secondary)] mb-1">List Type</label>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setSettingsListType('rank')}
+                className={`px-3 py-1.5 rounded text-sm flex items-center gap-1.5 ${settingsListType === 'rank' ? 'bg-[var(--color-accent-cyan)]/20 border border-[var(--color-accent-cyan)]/50 text-[var(--color-accent-cyan)]' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                <Trophy size={12} /> Rank
+              </button>
+              <button type="button" onClick={() => setSettingsListType('watch')}
+                className={`px-3 py-1.5 rounded text-sm flex items-center gap-1.5 ${settingsListType === 'watch' ? 'bg-[var(--color-accent-purple)]/20 border border-[var(--color-accent-purple)]/50 text-[var(--color-accent-purple)]' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                <Bookmark size={12} /> Watch
+              </button>
+            </div>
+          </div>
           <div className="flex gap-3">
             <button type="button" onClick={() => setSettingsPublic(false)}
               className={`px-3 py-1.5 rounded text-sm ${!settingsPublic ? 'bg-[var(--color-accent-purple)] text-white' : 'bg-[var(--color-bg-primary)] border border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
@@ -458,39 +483,43 @@ function ListEditorPage() {
               Public
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {SCORE_CATEGORIES.map((cat) => {
-              const Icon = cat.icon;
-              return (
-                <div key={cat.key}>
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] mb-1" title={cat.description}>
-                    <Icon size={12} /> {cat.label}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input type="range" min="0" max="5" step="0.1" value={settingsWeights[cat.key]}
-                      onChange={(e) => setSettingsWeights((p) => ({ ...p, [cat.key]: parseFloat(e.target.value) }))}
-                      className="flex-1 accent-[var(--color-accent-cyan)]" />
-                    <span className="text-sm text-[var(--color-accent-cyan)] w-8 text-right">×{settingsWeights[cat.key]}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!profile) return;
-              setSettingsWeights({
-                technical: profile.pref_weight_technical ?? 1,
-                storytelling: profile.pref_weight_storytelling ?? 1,
-                enjoyment: profile.pref_weight_enjoyment ?? 1,
-                xfactor: profile.pref_weight_xfactor ?? 1,
-              });
-            }}
-            className="px-3 py-1.5 text-xs border border-[var(--color-border)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent-cyan)] hover:border-[var(--color-accent-cyan)] transition-colors"
-          >
-            Use My Preferred Weights
-          </button>
+          {settingsListType === 'rank' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {SCORE_CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  return (
+                    <div key={cat.key}>
+                      <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] mb-1" title={cat.description}>
+                        <Icon size={12} /> {cat.label}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input type="range" min="0" max="5" step="0.1" value={settingsWeights[cat.key]}
+                          onChange={(e) => setSettingsWeights((p) => ({ ...p, [cat.key]: parseFloat(e.target.value) }))}
+                          className="flex-1 accent-[var(--color-accent-cyan)]" />
+                        <span className="text-sm text-[var(--color-accent-cyan)] w-8 text-right">×{settingsWeights[cat.key]}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!profile) return;
+                  setSettingsWeights({
+                    technical: profile.pref_weight_technical ?? 1,
+                    storytelling: profile.pref_weight_storytelling ?? 1,
+                    enjoyment: profile.pref_weight_enjoyment ?? 1,
+                    xfactor: profile.pref_weight_xfactor ?? 1,
+                  });
+                }}
+                className="px-3 py-1.5 text-xs border border-[var(--color-border)] rounded text-[var(--color-text-secondary)] hover:text-[var(--color-accent-cyan)] hover:border-[var(--color-accent-cyan)] transition-colors"
+              >
+                Use My Preferred Weights
+              </button>
+            </>
+          )}
           <button onClick={saveSettings} disabled={saving}
             className="px-4 py-2 bg-[var(--color-accent-cyan)] text-[var(--color-bg-primary)] rounded font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5 disabled:opacity-50">
             <Save size={14} /> {saving ? 'Saving...' : 'Save Settings'}
@@ -559,8 +588,19 @@ function ListEditorPage() {
                 className={`bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden ${rankOverride ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                 {/* Entry Row */}
                 <div className="flex items-center gap-4 p-4">
-                  {/* Drag Handle / Rank */}
-                  {rankOverride ? (
+                  {/* Watch List: Checkbox / Rank List: Drag Handle or Rank */}
+                  {(list.list_type || 'rank') === 'watch' ? (
+                    <button onClick={(e) => { e.stopPropagation(); toggleWatched(entry.id, entry.watched); }}
+                      className="shrink-0 w-8 flex justify-center" title={entry.watched ? 'Mark unwatched' : 'Mark watched'}>
+                      {entry.watched ? (
+                        <div className="w-6 h-6 rounded bg-[var(--color-accent-green)] flex items-center justify-center">
+                          <Check size={14} className="text-white" />
+                        </div>
+                      ) : (
+                        <Square size={22} className="text-[var(--color-text-secondary)]" />
+                      )}
+                    </button>
+                  ) : rankOverride ? (
                     <div className="flex flex-col items-center shrink-0 w-8">
                       <GripVertical size={18} className="text-[var(--color-accent-yellow)] mb-0.5" />
                       <span className="text-xs text-[var(--color-text-secondary)]">{index + 1}</span>
@@ -576,7 +616,7 @@ function ListEditorPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[var(--color-text-primary)] truncate">{title}</p>
+                    <p className={`font-medium text-[var(--color-text-primary)] truncate ${(list.list_type || 'rank') === 'watch' && entry.watched ? 'line-through opacity-60' : ''}`}>{title}</p>
                     {anime.title_native && (
                       <p className="text-xs text-[var(--color-text-secondary)] truncate">
                         <span className={/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]/.test(anime.title_native) ? 'font-japanese' : ''}>
@@ -593,11 +633,13 @@ function ListEditorPage() {
                     </div>
                   </div>
 
-                  {/* Overall Score */}
-                  <div className="text-center shrink-0">
-                    <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
-                    <p className="text-[10px] text-[var(--color-text-secondary)]">Overall</p>
-                  </div>
+                  {/* Overall Score (rank lists only) */}
+                  {(list.list_type || 'rank') === 'rank' && (
+                    <div className="text-center shrink-0">
+                      <p className="text-xl font-bold text-[var(--color-accent-green)]">{entry.overallScore.toFixed(1)}</p>
+                      <p className="text-[10px] text-[var(--color-text-secondary)]">Overall</p>
+                    </div>
+                  )}
 
                   {/* Expand/Collapse */}
                   <button onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
@@ -606,28 +648,30 @@ function ListEditorPage() {
                   </button>
                 </div>
 
-                {/* Expanded Scoring */}
+                {/* Expanded Panel */}
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-[var(--color-border)] pt-4">
-                    {/* Score Sliders */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      {scoreFields.map((cat) => {
-                        const Icon = cat.icon;
-                        return (
-                          <div key={cat.scoreKey}>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]" title={cat.description}>
-                                <Icon size={12} /> {cat.label}
-                              </label>
-                              <span className="text-sm font-medium text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</span>
+                    {/* Score Sliders (rank lists only) */}
+                    {(list.list_type || 'rank') === 'rank' && (
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        {scoreFields.map((cat) => {
+                          const Icon = cat.icon;
+                          return (
+                            <div key={cat.scoreKey}>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]" title={cat.description}>
+                                  <Icon size={12} /> {cat.label}
+                                </label>
+                                <span className="text-sm font-medium text-[var(--color-text-primary)]">{Number(entry[cat.scoreKey]).toFixed(1)}</span>
+                              </div>
+                              <input type="range" min="0" max="10" step="0.1" value={Number(entry[cat.scoreKey])}
+                                onChange={(e) => updateEntryScore(entry.id, cat.scoreKey, e.target.value)}
+                                className="w-full accent-[var(--color-accent-cyan)]" />
                             </div>
-                            <input type="range" min="0" max="10" step="0.1" value={Number(entry[cat.scoreKey])}
-                              onChange={(e) => updateEntryScore(entry.id, cat.scoreKey, e.target.value)}
-                              className="w-full accent-[var(--color-accent-cyan)]" />
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Notes */}
                     <div className="mb-4">

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Heart, List } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Heart, List, Trophy, Bookmark } from 'lucide-react';
 
 function DashboardPage() {
   const { user, profile } = useAuth();
@@ -23,12 +23,12 @@ function DashboardPage() {
     const [listsRes, likesRes] = await Promise.all([
       supabase
         .from('lists')
-        .select('id, title, description, is_public, like_count, created_at, updated_at')
+        .select('id, title, description, is_public, like_count, list_type, created_at, updated_at')
         .eq('user_id', user.id)
         .order('updated_at', { ascending: false }),
       supabase
         .from('likes')
-        .select('list_id, lists(id, title, description, is_public, like_count, updated_at, profiles(display_name, username))')
+        .select('list_id, lists(id, title, description, is_public, like_count, list_type, updated_at, profiles(display_name, username))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
     ]);
@@ -126,6 +126,9 @@ function DashboardPage() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
+                      {(list.list_type || 'rank') === 'watch'
+                        ? <Bookmark size={14} className="shrink-0 text-[var(--color-accent-purple)]" />
+                        : <Trophy size={14} className="shrink-0 text-[var(--color-accent-cyan)]" />}
                       <Link
                         to={`/list/${list.id}`}
                         className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-accent-cyan)] transition-colors truncate"
@@ -196,7 +199,12 @@ function DashboardPage() {
                   className="block p-4 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-accent-cyan)] transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-medium text-[var(--color-text-primary)]">{list.title}</h3>
+                    <h3 className="font-medium text-[var(--color-text-primary)] flex items-center gap-1.5">
+                      {(list.list_type || 'rank') === 'watch'
+                        ? <Bookmark size={13} className="shrink-0 text-[var(--color-accent-purple)]" />
+                        : <Trophy size={13} className="shrink-0 text-[var(--color-accent-cyan)]" />}
+                      {list.title}
+                    </h3>
                     <span className="flex items-center gap-1 text-sm text-[var(--color-text-secondary)]">
                       <Heart size={12} /> {list.like_count || 0}
                     </span>
