@@ -561,7 +561,7 @@ function ListDetailPage() {
                           <p className="text-xs font-medium text-[var(--color-text-primary)] mb-2">Relations</p>
                           <div className="flex flex-wrap gap-2">
                             {anime.relations.map((rel, i) => (
-                              <a key={i} href={`https://anilist.co/${rel.format === 'MANGA' || rel.format === 'ONE_SHOT' ? 'manga' : rel.format === 'NOVEL' ? 'manga' : 'anime'}/${rel.id}`} target="_blank" rel="noopener noreferrer"
+                              <Link key={i} to={`/search?q=${encodeURIComponent(rel.title?.english || rel.title?.romaji || '')}`}
                                 className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-[var(--color-bg-primary)] hover:bg-[var(--color-border)] transition-colors group">
                                 {rel.coverImage?.medium && (
                                   <img src={rel.coverImage.medium} alt="" className="w-8 h-11 object-cover rounded" />
@@ -575,7 +575,7 @@ function ListDetailPage() {
                                     {rel.format ? ` · ${rel.format}` : ''}
                                   </p>
                                 </div>
-                              </a>
+                              </Link>
                             ))}
                           </div>
                         </div>

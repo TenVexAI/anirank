@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search as SearchIcon, ExternalLink, Tv, Film, Clock, Heart, List, ChevronDown, ChevronUp } from 'lucide-react';
 import { searchAnime } from '../lib/anilist';
 import { supabase } from '../lib/supabase';
@@ -32,6 +32,8 @@ const STATUS_COLORS = {
 };
 
 function SearchPage() {
+  const [searchParams] = useSearchParams();
+
   // List search state
   const [listQuery, setListQuery] = useState('');
   const [listResults, setListResults] = useState([]);
@@ -39,7 +41,7 @@ function SearchPage() {
   const listDebounceRef = useRef(null);
 
   // Anime search state
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -48,6 +50,15 @@ function SearchPage() {
   const [expandedId, setExpandedId] = useState(null);
   const debounceRef = useRef(null);
   const cacheRef = useRef({});
+
+  // Sync query from URL search params (e.g. when clicking a relation link)
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && q !== query) {
+      setQuery(q);
+      setExpandedId(null);
+    }
+  }, [searchParams]);
 
   // List search — run two queries (title match + creator match) and merge
   const searchLists = useCallback(async (q) => {
@@ -368,7 +379,7 @@ function SearchPage() {
                             <p className="text-xs font-medium text-[var(--color-text-primary)] mb-2">Relations</p>
                             <div className="flex flex-wrap gap-2">
                               {anime.relations.edges.map((edge, i) => (
-                                <a key={i} href={`https://anilist.co/${edge.node.format === 'MANGA' || edge.node.format === 'ONE_SHOT' ? 'manga' : edge.node.format === 'NOVEL' ? 'manga' : 'anime'}/${edge.node.id}`} target="_blank" rel="noopener noreferrer"
+                                <Link key={i} to={`/search?q=${encodeURIComponent(edge.node.title.english || edge.node.title.romaji || '')}`}
                                   className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-[var(--color-bg-primary)] hover:bg-[var(--color-border)] transition-colors group">
                                   {edge.node.coverImage?.medium && (
                                     <img src={edge.node.coverImage.medium} alt="" className="w-8 h-11 object-cover rounded" />
@@ -382,7 +393,7 @@ function SearchPage() {
                                       {edge.node.format ? ` · ${edge.node.format}` : ''}
                                     </p>
                                   </div>
-                                </a>
+                                </Link>
                               ))}
                             </div>
                           </div>
