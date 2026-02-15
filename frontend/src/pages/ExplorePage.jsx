@@ -383,10 +383,9 @@ function ExplorePage() {
 
             return (
               <div key={anime.id} className="bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-                <button onClick={() => setExpandedId(isExpanded ? null : anime.id)} className="w-full text-left">
-                  <div className="flex items-center gap-4 p-4">
-                    <img src={anime.coverImage?.large} alt={title} className="w-14 h-20 object-cover rounded shrink-0" />
-                    <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-4 p-4">
+                  <img src={anime.coverImage?.large} alt={title} className="w-14 h-20 object-cover rounded shrink-0" />
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : anime.id)}>
                       <h3 className="font-medium text-[var(--color-text-primary)] truncate">{title}</h3>
                       {nativeTitle && (
                         <p className="text-xs text-[var(--color-text-secondary)] truncate">
@@ -410,17 +409,20 @@ function ExplorePage() {
                         {studio && <span className="text-[10px] text-[var(--color-text-secondary)]">{studio}</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {anime.averageScore && (
-                        <div className="text-center">
-                          <p className="text-xl font-bold text-[var(--color-accent-green)]">{anime.averageScore}%</p>
-                          <p className="text-[9px] text-[var(--color-text-secondary)]">Score</p>
-                        </div>
-                      )}
-                      {isExpanded ? <ChevronUp size={16} className="text-[var(--color-text-secondary)]" /> : <ChevronDown size={16} className="text-[var(--color-text-secondary)]" />}
-                    </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {anime.averageScore && (
+                      <div className="text-center mr-1">
+                        <p className="text-xl font-bold text-[var(--color-accent-green)]">{anime.averageScore}%</p>
+                        <p className="text-[9px] text-[var(--color-text-secondary)]">Score</p>
+                      </div>
+                    )}
+                    <AddToListButton anime={anime} />
+                    <button onClick={() => setExpandedId(isExpanded ? null : anime.id)}
+                      className="p-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {isExpanded && (
                   <div className="border-t border-[var(--color-border)]">
@@ -486,15 +488,12 @@ function ExplorePage() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-3 mt-3">
-                        {anime.siteUrl && (
-                          <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline">
-                            <ExternalLink size={10} /> View on AniList
-                          </a>
-                        )}
-                        <AddToListButton anime={anime} />
-                      </div>
+                      {anime.siteUrl && (
+                        <a href={anime.siteUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs text-[var(--color-accent-cyan)] hover:underline mt-3">
+                          <ExternalLink size={10} /> View on AniList
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}
